@@ -1,6 +1,6 @@
 import { audiotool } from '@audiotool/nexus'
 
-const VERSION = '0.8.1'
+const VERSION = '0.8.2'
 const CLIENT_ID = 'b3947602-ebae-4224-9d65-6b7bdbcc9da6'
 const REDIRECT_URL = window.location.hostname === '127.0.0.1'
   ? 'http://127.0.0.1:5173/'
@@ -10,7 +10,6 @@ const REDIRECT_URL = window.location.hostname === '127.0.0.1'
 type PickerCell = { nexusIndex: number; cssNum: number; name: string }
 
 const PICKER_CELLS: PickerCell[] = [
-  // Reihe 1 — kräftig
   { cssNum: 1, nexusIndex: 6, name: "Strawberry" },
   { cssNum: 2, nexusIndex: 7, name: "Bonbon" },
   { cssNum: 11, nexusIndex: 4, name: "Electra" },
@@ -25,7 +24,6 @@ const PICKER_CELLS: PickerCell[] = [
   { cssNum: 13, nexusIndex: 36, name: "Pink-Magenta" },
   { cssNum: 3, nexusIndex: 8, name: "Sun-Brown" },
   { cssNum: 14, nexusIndex: 39, name: "Ghost" },
-  // Reihe 2 — desaturated
   { cssNum: 1, nexusIndex: 23, name: "Wood" },
   { cssNum: 2, nexusIndex: 12, name: "Sahara" },
   { cssNum: 11, nexusIndex: 21, name: "Mauve" },
@@ -40,7 +38,6 @@ const PICKER_CELLS: PickerCell[] = [
   { cssNum: 13, nexusIndex: 37, name: "Rosy Brown" },
   { cssNum: 3, nexusIndex: 13, name: "Beach" },
   { cssNum: 14, nexusIndex: 40, name: "Bright Gray" },
-  // Reihe 3 — dark
   { cssNum: 1, nexusIndex: 30, name: "Crimson" },
   { cssNum: 2, nexusIndex: 31, name: "Zeitgeist" },
   { cssNum: 11, nexusIndex: 28, name: "Purple Haze" },
@@ -108,7 +105,6 @@ const AUDIO_DEVICES = new Set(['audioDevice'])
 const VST_DEVICES = new Set(['genericVst3PluginBeta','spitfireLabsVst3Plugin'])
 const MIDI_DEVICES = new Set(['matrixArpeggiator','noteSplitter','tonematrix'])
 
-// Anzeige-Namen pro Gruppe (was zur Gruppe gehört, statisch)
 const GROUP_DEVICE_LIST: Record<GroupKey, string[]> = {
   synths: ['Pulverisateur', 'Heisenberg', 'Bassline', 'Space', 'Gakki', 'Tonematrix'],
   drums: ['Beatbox 8', 'Beatbox 9', 'Machiniste'],
@@ -134,15 +130,14 @@ const SLOT_LABELS: Record<SlotKey, string> = {
   third: 'Midi FX | Groups',
 }
 
-// ─── Presets: 3 Farben (main, second, third) — auf alle 4 Gruppen gleich ───
 type Preset = { name: string; colors: [number, number, number] }
 const PRESETS: Preset[] = [
-  { name: 'Aubergine',     colors: [4, 24, 28] },    // Electra · Reef · Purple Haze
-  { name: 'Greymode',      colors: [39, 40, 41] },   // Ghost · Bright Gray · Dark Gray
-  { name: 'Beach',         colors: [1, 10, 2] },     // Audiotool · Lemon · Cerulean
-  { name: 'Down to Earth', colors: [34, 38, 33] },   // Vacuum · Bistre · Circuit
-  { name: 'Compliment',    colors: [7, 4, 11] },     // Bonbon · Electra · Sprout
-  { name: 'Acid Bath',     colors: [39, 11, 10] },   // Ghost · Sprout · Lemon
+  { name: 'Aubergine',     colors: [4, 24, 28] },
+  { name: 'Greymode',      colors: [39, 40, 41] },
+  { name: 'Beach',         colors: [1, 10, 2] },
+  { name: 'Down to Earth', colors: [34, 38, 33] },
+  { name: 'Compliment',    colors: [7, 4, 11] },
+  { name: 'Acid Bath',     colors: [39, 11, 10] },
 ]
 
 function deviceGroup(type: string): GroupKey | null {
@@ -184,18 +179,18 @@ type CableInfo = {
 }
 type RegionInfo = {
   id: string
-  regionType: string  // 'audioRegion' | 'noteRegion' | 'patternRegion' | 'automationRegion'
+  regionType: string
   ownerDeviceId: string | null
   trackId: string | null
   originalColor: number
-  colorField: any  // direkter Verweis auf das colorIndex-Feld (verschachtelt in region.fields.colorIndex)
+  colorField: any
 }
 type MixerStripInfo = {
   id: string
-  stripType: string  // 'mixerChannel' | 'mixerGroup' | 'mixerAux'
-  sourceDeviceId: string | null  // via Cable getraced
+  stripType: string
+  sourceDeviceId: string | null
   originalColor: number
-  colorField: any  // displayParameters.fields.colorIndex
+  colorField: any
 }
 type DeviceInfo = { id: string; type: string; group: GroupKey | null }
 type ProjectState = {
@@ -254,7 +249,6 @@ function saveFavorites(f: Favorites) {
 let favorites: Favorites = loadFavorites()
 
 let pickerTarget: { group: GroupKey; slot: SlotKey } | null = null
-
 let favEditSlot: number = 0
 let favEditDraft: Favorites = [null, null, null]
 
@@ -271,7 +265,6 @@ function setButtonsEnabled(enabled: boolean) {
     const b = document.getElementById(id) as HTMLButtonElement | null
     if (b) b.disabled = !enabled
   }
-  // Preset-Buttons mit toggeln
   document.querySelectorAll<HTMLButtonElement>('.preset-btn').forEach(b => {
     b.disabled = !enabled
   })
@@ -306,7 +299,6 @@ function applyPreset(idx: number) {
   const preset = PRESETS[idx]
   if (!preset) return
 
-  // Override-Mode aufheben falls aktiv
   if (overrideMode !== null) {
     overrideMode = null
     overrideByCableId.clear()
@@ -314,7 +306,6 @@ function applyPreset(idx: number) {
     overrideByMixerStripId.clear()
   }
 
-  // Alle 4 Gruppen identisch füllen
   for (const g of GROUP_ORDER) {
     groupColors[g] = {
       main: preset.colors[0],
@@ -345,7 +336,6 @@ function readDisplayInfo(entity: any): { name: string; order: number } {
   return { name: '', order: 0 }
 }
 
-// Hilfsfunktion: rückwärts durch Kabel tracen bis Device mit bekannter Group gefunden
 function traceFromDeviceForGroup(
   startId: string,
   devices: Map<string, DeviceInfo>,
@@ -363,6 +353,30 @@ function traceFromDeviceForGroup(
       if (c.isNoteCable) continue
       if (c.toId === cur && c.fromId && !visited.has(c.fromId)) {
         queue.push(c.fromId)
+      }
+    }
+  }
+  return null
+}
+
+// NEU: vorwärts durch NOTE-Kabel bis Group-Device (Arpeggiator → Synth)
+function traceForwardThroughNotesForGroup(
+  startId: string,
+  devices: Map<string, DeviceInfo>,
+  cables: CableInfo[]
+): GroupKey | null {
+  const visited = new Set<string>()
+  const queue: string[] = [startId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    const dev = devices.get(cur)
+    if (dev?.group) return dev.group
+    for (const c of cables) {
+      if (!c.isNoteCable) continue
+      if (c.fromId === cur && c.toId && !visited.has(c.toId)) {
+        queue.push(c.toId)
       }
     }
   }
@@ -419,11 +433,6 @@ function readState(nexus: any): ProjectState {
   for (const c of audioCables) ingest(c, false)
   for (const c of noteCables) ingest(c, true)
 
-  // ─── Regions lesen ─────────────────────────────────────────
-  // Echte Entity-Typen aus dem Studio-Repo:
-  //   audioRegion, noteRegion, patternRegion, automationRegion
-  // colorIndex liegt in der verschachtelten Submessage "region":
-  //   entity.fields.region.fields.colorIndex
   const regions: RegionInfo[] = []
   const trackToDevice = new Map<string, string>()
 
@@ -438,7 +447,6 @@ function readState(nexus: any): ProjectState {
     }
 
     for (const ent of entities) {
-      // colorIndex liegt verschachtelt: ent.fields.region.fields.colorIndex
       const subRegion = ent.fields?.region
       const colorField = subRegion?.fields?.colorIndex
       if (!colorField) continue
@@ -457,9 +465,6 @@ function readState(nexus: any): ProjectState {
     }
   }
 
-  // Track → Device Mapping
-  // noteTrack/audioTrack/patternTrack: Field heißt "player"
-  // automationTrack: Field heißt "automatedParameter"
   const playerTrackTypes = ['noteTrack', 'audioTrack', 'patternTrack']
   for (const trackType of playerTrackTypes) {
     try {
@@ -482,7 +487,6 @@ function readState(nexus: any): ProjectState {
     }
   } catch {}
 
-  // Owner-Device für Regions auflösen
   for (const r of regions) {
     if (r.trackId) {
       const devId = trackToDevice.get(r.trackId)
@@ -490,9 +494,6 @@ function readState(nexus: any): ProjectState {
     }
   }
 
-  // ─── Mixer-Strips lesen ────────────────────────────────────
-  // mixerChannel/mixerGroup/mixerAux haben displayParameters.fields.colorIndex
-  // mixerMaster/mixerDelayAux/mixerReverbAux: lassen wir aus (kein eindeutiger Source)
   const mixerStrips: MixerStripInfo[] = []
   const mixerStripTypes = ['mixerChannel', 'mixerGroup', 'mixerAux']
   for (const stripType of mixerStripTypes) {
@@ -506,7 +507,6 @@ function readState(nexus: any): ProjectState {
       const colorField = ent.fields?.displayParameters?.fields?.colorIndex
       if (!colorField) continue
 
-      // Source tracen via Cables: welche Devices verkabeln in diesen Strip?
       let sourceDeviceId: string | null = null
       for (const c of cables) {
         if (c.isNoteCable) continue
@@ -516,13 +516,10 @@ function readState(nexus: any): ProjectState {
             sourceDeviceId = c.fromId
             break
           }
-          // Fallback: irgendein Device
           if (!sourceDeviceId) sourceDeviceId = c.fromId
         }
       }
-      // Falls direkter Source kein bekanntes Device → tiefer tracen
       if (sourceDeviceId && !devices.get(sourceDeviceId)?.group) {
-        // schau weiter rückwärts (FX-Kette)
         const traced = traceFromDeviceForGroup(sourceDeviceId, devices, cables)
         if (traced) sourceDeviceId = traced
       }
@@ -583,6 +580,7 @@ function targetColorForCable(cable: CableInfo): number | null {
   return null
 }
 
+// ─── Region-Color: mit Trace-Fallback für Non-Group-Owner ─────────────
 function targetColorForRegion(region: RegionInfo): number | null {
   if (!state) return null
 
@@ -591,15 +589,33 @@ function targetColorForRegion(region: RegionInfo): number | null {
     return o ?? null
   }
 
-  if (region.ownerDeviceId) {
-    const dev = state.devices.get(region.ownerDeviceId)
-    if (dev?.group) {
-      // automationRegion → second-Slot ("FX Chain | Automation")
-      // alle anderen (audio/note/pattern) → main-Slot
-      const slot: SlotKey = region.regionType === 'automationRegion' ? 'second' : 'main'
-      return groupColors[dev.group][slot]
-    }
+  if (!region.ownerDeviceId) return null
+
+  const dev = state.devices.get(region.ownerDeviceId)
+
+  // Direkter Owner ist in einer Hauptgruppe
+  if (dev?.group) {
+    const slot: SlotKey = region.regionType === 'automationRegion' ? 'second' : 'main'
+    return groupColors[dev.group][slot]
   }
+
+  // Owner ist Non-Group-Device (Arpeggiator, Stompbox etc.) → tracen
+  if (region.regionType === 'noteRegion' || region.regionType === 'patternRegion') {
+    const targetGroup = traceForwardThroughNotesForGroup(region.ownerDeviceId, state.devices, state.cables)
+    if (targetGroup) {
+      return groupColors[targetGroup].third
+    }
+    return null
+  }
+
+  if (region.regionType === 'automationRegion') {
+    const sourceGroup = traceSourceGroup(region.ownerDeviceId)
+    if (sourceGroup) {
+      return groupColors[sourceGroup].second
+    }
+    return null
+  }
+
   return null
 }
 
@@ -615,7 +631,6 @@ function targetColorForMixerStrip(strip: MixerStripInfo): number | null {
   const dev = state.devices.get(strip.sourceDeviceId)
   if (!dev?.group) return null
 
-  // mixerChannel → main, mixerAux → second, mixerGroup → third
   let slot: SlotKey
   if (strip.stripType === 'mixerGroup') slot = 'third'
   else if (strip.stripType === 'mixerAux') slot = 'second'
@@ -680,7 +695,6 @@ function renderStrips() {
       else meta = `${count} device${count === 1 ? '' : 's'} · ready`
     }
 
-    // Device-Liste der Gruppe (statisch)
     const deviceListHtml = `<div class="strip-devicelist">${GROUP_DEVICE_LIST[g].join(' · ')}</div>`
 
     html.push(`
@@ -715,7 +729,7 @@ function renderStrips() {
 }
 
 function renderSummary() {
-  // Count-Pills wurden entfernt — Strip-Meta in jeder Gruppe zeigt die Counts kontextuell
+  // Count-Pills wurden entfernt
 }
 
 function openPicker(group: GroupKey, slot: SlotKey) {
@@ -761,21 +775,17 @@ function applyFavorites() {
     setStatus('read a project first', 'warning')
     return
   }
-  // Editor immer öffnen, mit vorhandenen Farben pre-filled
   openFavEditor()
 }
 
-// Wird aus dem Fav-Editor heraus gerufen, schreibt direkt
 async function applyFavoritesNow() {
   if (!state || !lastNexus) return
   const validFavs = favEditDraft.filter(f => f !== null) as number[]
   if (validFavs.length === 0) return
 
-  // Favoriten persistieren
   favorites = [...favEditDraft] as Favorites
   saveFavorites(favorites)
 
-  // Override aufbauen
   overrideMode = 'favorites'
   overrideByCableId = new Map()
   overrideByRegionId = new Map()
@@ -898,7 +908,6 @@ async function readProject(url: string) {
     overrideByRegionId.clear()
     overrideByMixerStripId.clear()
 
-    // Region-Typ-Aufschlüsselung im Console-Log
     const regionsByType: Record<string, number> = {}
     for (const r of state.regions) {
       regionsByType[r.regionType] = (regionsByType[r.regionType] || 0) + 1
@@ -1021,9 +1030,6 @@ async function undoColors() {
   }
 }
 
-// Randomize: Slot-Machine-Animation + paralleler Schreibvorgang
-// Randomize: Slot-Machine-Animation zieht 12 unique Farben, danach werden Cables/Regions/Strips
-// nur aus diesem 12er-Pool zufällig befüllt — Tool & Studio sind dann ehrlich konsistent
 async function randomizeColors() {
   if (!state || !lastNexus) {
     setStatus('read a project first', 'warning')
@@ -1036,10 +1042,8 @@ async function randomizeColors() {
 
   setStatus(`randomizing — slot machine spinning...`, 'info')
 
-  // Animation läuft und zieht 12 unique Farben in groupColors
   await animateRandomizeSlots()
 
-  // 12er-Pool aus den finalen Slot-Farben sammeln
   const pool: number[] = []
   for (const g of GROUP_ORDER) {
     for (const slot of SLOT_KEYS) {
@@ -1053,7 +1057,6 @@ async function randomizeColors() {
     return
   }
 
-  // Alle Cables/Regions/Strips zufällig aus dem 12er-Pool zuweisen
   for (const c of state.cables) {
     overrideByCableId.set(c.id, pool[Math.floor(Math.random() * pool.length)])
   }
@@ -1068,16 +1071,12 @@ async function randomizeColors() {
   await applyColors()
 }
 
-// Slot-Machine-Animation: alle Slots blinken, stoppen gestaffelt von oben links nach unten rechts
-// Beim Stoppen wird aus einem schrumpfenden Pool gezogen, sodass die finalen 12 Slot-Farben unique sind
 async function animateRandomizeSlots(): Promise<void> {
   if (!state) return
 
-  // Welche Gruppen sind aktiv (haben Devices)?
   const activeGroups = GROUP_ORDER.filter(g => (state!.counts[g] ?? 0) > 0)
   if (activeGroups.length === 0) return
 
-  // Alle Bänder sammeln, in Reihenfolge: Synths.main, Synths.second, Synths.third, Drums.main, ...
   const allBands: Array<{ el: HTMLElement; group: GroupKey; slot: SlotKey }> = []
   for (const g of activeGroups) {
     for (const slot of SLOT_KEYS) {
@@ -1090,14 +1089,12 @@ async function animateRandomizeSlots(): Promise<void> {
 
   if (allBands.length === 0) return
 
-  const BLINK_INTERVAL = 80   // ms zwischen Farb-Wechseln während Blinken
-  const STAGGER_DELAY = 120   // ms zwischen den Stops einzelner Slots
-  const MIN_BLINKS = 6        // jeder Slot blinkt mindestens so oft
+  const BLINK_INTERVAL = 80
+  const STAGGER_DELAY = 120
+  const MIN_BLINKS = 6
 
-  // Welche Slots blinken noch (true) bzw. stehen (false)?
   const stillBlinking = allBands.map(() => true)
 
-  // Empty-Klasse für die Animations-Dauer entfernen, sonst überlagert das diagonal-Pattern
   const wasEmpty = allBands.map(b => b.el.classList.contains('empty'))
   for (let i = 0; i < allBands.length; i++) {
     if (wasEmpty[i]) {
@@ -1106,7 +1103,6 @@ async function animateRandomizeSlots(): Promise<void> {
     }
   }
 
-  // Blink-Loop — zeigt während des Spinnens alle 42 Farben
   const blinkTimer = setInterval(() => {
     for (let i = 0; i < allBands.length; i++) {
       if (!stillBlinking[i]) continue
@@ -1115,19 +1111,16 @@ async function animateRandomizeSlots(): Promise<void> {
     }
   }, BLINK_INTERVAL)
 
-  // Mindest-Blink-Dauer warten, dann gestaffelt stoppen
   await new Promise(r => setTimeout(r, BLINK_INTERVAL * MIN_BLINKS))
 
-  // Schrumpfender Pool — beginnt mit allen 42, jedes Stop entnimmt eine ohne Zurücklegen
   const availablePool = [...ALL_NEXUS_INDICES]
 
   for (let i = 0; i < allBands.length; i++) {
-    if (availablePool.length === 0) break  // safety, sollte bei 42 vs max 12 nicht passieren
+    if (availablePool.length === 0) break
     const pickIdx = Math.floor(Math.random() * availablePool.length)
     const finalIdx = availablePool.splice(pickIdx, 1)[0]
     stillBlinking[i] = false
     allBands[i].el.style.background = hexForNexusIndex(finalIdx)
-    // groupColors-State updaten, damit nach Re-Render die Snapshot-Farbe erhalten bleibt
     groupColors[allBands[i].group][allBands[i].slot] = finalIdx
     await new Promise(r => setTimeout(r, STAGGER_DELAY))
   }
@@ -1151,13 +1144,11 @@ function resetColors() {
 }
 
 async function main() {
-  // 42-Farben-Streifen vertikal als Hintergrund hinter dem Tool
   const stripesHtml = PICKER_CELLS
     .map(cell => `<div class="color-stripe-cell" style="background:${hexForNexusIndex(cell.nexusIndex)}"></div>`)
     .join('')
   document.getElementById('color-stripes')!.innerHTML = stripesHtml
 
-  // Preset-Buttons rendern
   renderPresetButtons()
 
   document.getElementById('login-section')!.style.display = 'block'
@@ -1205,7 +1196,6 @@ async function main() {
     if ((e.target as HTMLElement).id === 'fav-overlay') closeFavEditor()
   })
 
-  // Help-Modal
   const helpOverlay = document.getElementById('help-overlay')!
   document.getElementById('help-btn')!.addEventListener('click', () => {
     helpOverlay.classList.add('active')
