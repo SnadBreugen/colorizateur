@@ -141,7 +141,7 @@ const PRESETS: Preset[] = [
   { name: 'Greymode',      colors: [39, 40, 41] },   // Ghost · Bright Gray · Dark Gray
   { name: 'Beach',         colors: [1, 10, 2] },     // Audiotool · Lemon · Cerulean
   { name: 'Down to Earth', colors: [34, 38, 33] },   // Vacuum · Bistre · Circuit
-  { name: 'Compliment',    colors: [11, 7, 4] },     // Sprout · Bonbon · Electra
+  { name: 'Compliment',    colors: [7, 4, 11] },     // Bonbon · Electra · Sprout
   { name: 'Acid Bath',     colors: [39, 11, 10] },   // Ghost · Sprout · Lemon
 ]
 
