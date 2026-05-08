@@ -130,14 +130,15 @@ const SLOT_LABELS: Record<SlotKey, string> = {
   third: 'Midi FX | Groups',
 }
 
-type Preset = { name: string; colors: [number, number, number] }
+// ─── Presets: 4 Farben pro Preset, diagonal über 4 Gruppen × 3 Slots verteilt ───
+type Preset = { name: string; colors: [number, number, number, number] }
 const PRESETS: Preset[] = [
-  { name: 'Aubergine',     colors: [4, 24, 28] },
-  { name: 'Greymode',      colors: [39, 40, 41] },
-  { name: 'Beach',         colors: [1, 10, 2] },
-  { name: 'Down to Earth', colors: [34, 38, 33] },
-  { name: 'Compliment',    colors: [7, 4, 11] },
-  { name: 'Acid Bath',     colors: [39, 11, 10] },
+  { name: 'Aubergine',     colors: [4, 24, 28, 0] },     // Electra · Reef · Purple Haze · Rain
+  { name: 'Greymode',      colors: [39, 40, 41, 19] },   // Ghost · Bright Gray · Dark Gray · Dream
+  { name: 'Beach',         colors: [1, 10, 2, 14] },     // Audiotool · Lemon · Cerulean · Leaf
+  { name: 'Down to Earth', colors: [34, 38, 33, 31] },   // Vacuum · Bistre · Circuit · Zeitgeist
+  { name: 'Compliment',    colors: [7, 4, 11, 10] },     // Bonbon · Electra · Sprout · Lemon
+  { name: 'Acid Bath',     colors: [39, 11, 10, 41] },   // Ghost · Sprout · Lemon · Dark Gray
 ]
 
 function deviceGroup(type: string): GroupKey | null {
@@ -306,11 +307,19 @@ function applyPreset(idx: number) {
     overrideByMixerStripId.clear()
   }
 
-  for (const g of GROUP_ORDER) {
+  // Diagonale Verteilung — jede Gruppe rotiert die 4 Farben um eine Position
+  // Synths: [c0, c1, c2]
+  // Drums:  [c1, c2, c3]
+  // Audio:  [c2, c3, c0]
+  // VST:    [c3, c0, c1]
+  // Dadurch erscheint jede Farbe in jeder Spalte (main/second/third) genau einmal,
+  // und benachbarte Slots im Layout haben nie dieselbe Farbe.
+  for (let i = 0; i < GROUP_ORDER.length; i++) {
+    const g = GROUP_ORDER[i]
     groupColors[g] = {
-      main: preset.colors[0],
-      second: preset.colors[1],
-      third: preset.colors[2],
+      main:   preset.colors[i % 4],
+      second: preset.colors[(i + 1) % 4],
+      third:  preset.colors[(i + 2) % 4],
     }
   }
 
