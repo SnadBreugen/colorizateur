@@ -137,11 +137,15 @@
       content: ' + ';
     }
 
-    /* ─── Stage: Stripes-Hintergrund + Main-Block ─────────────────── */
+    /* ─── Stage: Stripes-Hintergrund + zentrierter Main-Block ─────── */
     .stage {
       flex: 1;
       position: relative;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 0;
     }
 
     .color-stripes {
@@ -153,15 +157,12 @@
     }
     .color-stripe-cell { flex: 1; }
 
-    /* ─── Main: shrink-to-fit, nicht stretch ──────────────────────── */
+    /* ─── Main: shrink-to-fit, vertikal mittig ────────────────────── */
     main {
-      position: absolute;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
+      position: relative;
       width: calc(100% - 240px);
       max-width: 1200px;
-      max-height: calc(100% - 32px);
+      max-height: 100%;
       background: var(--bg);
       border: 3px solid var(--fg);
       padding: 24px 32px;
@@ -170,10 +171,9 @@
     }
 
     @media (max-width: 1100px) {
+      .stage { padding: 12px 0; }
       main {
         width: calc(100% - 80px);
-        top: 12px;
-        max-height: calc(100% - 24px);
       }
     }
 
