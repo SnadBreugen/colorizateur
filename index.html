@@ -153,15 +153,15 @@
     }
     .color-stripe-cell { flex: 1; }
 
-    /* ─── Main ───────────────────────────────────────────────────── */
+    /* ─── Main: shrink-to-fit, nicht stretch ──────────────────────── */
     main {
       position: absolute;
       top: 16px;
-      bottom: 16px;
       left: 50%;
       transform: translateX(-50%);
       width: calc(100% - 240px);
       max-width: 1200px;
+      max-height: calc(100% - 32px);
       background: var(--bg);
       border: 3px solid var(--fg);
       padding: 24px 32px;
@@ -173,7 +173,7 @@
       main {
         width: calc(100% - 80px);
         top: 12px;
-        bottom: 12px;
+        max-height: calc(100% - 24px);
       }
     }
 

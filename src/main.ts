@@ -1,847 +1,1222 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>the color guy</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Special+Elite&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #000000;
-      --fg: #ffffff;
-      --dim: #888888;
-      --border: #2a2a2a;
-      --panel: #0a0a0a;
-      --orange: #ff6b00;
-      --magenta: #ff2da0;
-      --lime: #b8ff3d;
-      --purple: #9b4bf6;
-      --cyan: #28e5ff;
-      --yellow: #ffe600;
-      --red: #ff2233;
-    }
+import { audiotool } from '@audiotool/nexus'
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+const VERSION = '0.8.2'
+const CLIENT_ID = 'b3947602-ebae-4224-9d65-6b7bdbcc9da6'
+const REDIRECT_URL = window.location.hostname === '127.0.0.1'
+  ? 'http://127.0.0.1:5173/'
+  : window.location.origin + window.location.pathname
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--fg);
-      font-family: 'Special Elite', monospace;
-      font-size: 13px;
-      line-height: 1.5;
-    }
+// ─── Picker-Mapping ──────────────────────────────────────────────────
+type PickerCell = { nexusIndex: number; cssNum: number; name: string }
 
-    body {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
+const PICKER_CELLS: PickerCell[] = [
+  { cssNum: 1, nexusIndex: 6, name: "Strawberry" },
+  { cssNum: 2, nexusIndex: 7, name: "Bonbon" },
+  { cssNum: 11, nexusIndex: 4, name: "Electra" },
+  { cssNum: 12, nexusIndex: 5, name: "Pink" },
+  { cssNum: 4, nexusIndex: 9, name: "Sahara" },
+  { cssNum: 5, nexusIndex: 10, name: "Lemon" },
+  { cssNum: 6, nexusIndex: 11, name: "Sprout" },
+  { cssNum: 7, nexusIndex: 0, name: "Rain" },
+  { cssNum: 8, nexusIndex: 1, name: "Audiotool" },
+  { cssNum: 9, nexusIndex: 2, name: "Cerulean" },
+  { cssNum: 10, nexusIndex: 3, name: "Indigo" },
+  { cssNum: 13, nexusIndex: 36, name: "Pink-Magenta" },
+  { cssNum: 3, nexusIndex: 8, name: "Sun-Brown" },
+  { cssNum: 14, nexusIndex: 39, name: "Ghost" },
+  { cssNum: 1, nexusIndex: 23, name: "Wood" },
+  { cssNum: 2, nexusIndex: 12, name: "Sahara" },
+  { cssNum: 11, nexusIndex: 21, name: "Mauve" },
+  { cssNum: 12, nexusIndex: 22, name: "Blush" },
+  { cssNum: 4, nexusIndex: 14, name: "Leaf" },
+  { cssNum: 5, nexusIndex: 15, name: "Retro" },
+  { cssNum: 6, nexusIndex: 16, name: "Eucalyptus" },
+  { cssNum: 7, nexusIndex: 17, name: "Blue Vanilla" },
+  { cssNum: 8, nexusIndex: 18, name: "Still" },
+  { cssNum: 9, nexusIndex: 19, name: "Dream" },
+  { cssNum: 10, nexusIndex: 20, name: "Mouse Gray" },
+  { cssNum: 13, nexusIndex: 37, name: "Rosy Brown" },
+  { cssNum: 3, nexusIndex: 13, name: "Beach" },
+  { cssNum: 14, nexusIndex: 40, name: "Bright Gray" },
+  { cssNum: 1, nexusIndex: 30, name: "Crimson" },
+  { cssNum: 2, nexusIndex: 31, name: "Zeitgeist" },
+  { cssNum: 11, nexusIndex: 28, name: "Purple Haze" },
+  { cssNum: 12, nexusIndex: 29, name: "Lipstick" },
+  { cssNum: 4, nexusIndex: 33, name: "Circuit" },
+  { cssNum: 5, nexusIndex: 34, name: "Vacuum" },
+  { cssNum: 6, nexusIndex: 35, name: "Racing Green" },
+  { cssNum: 7, nexusIndex: 24, name: "Reef" },
+  { cssNum: 8, nexusIndex: 25, name: "Ocean" },
+  { cssNum: 9, nexusIndex: 26, name: "Polar Night" },
+  { cssNum: 10, nexusIndex: 27, name: "Plum" },
+  { cssNum: 13, nexusIndex: 38, name: "Bistre" },
+  { cssNum: 3, nexusIndex: 32, name: "Moussaka" },
+  { cssNum: 14, nexusIndex: 41, name: "Dark Gray" },
+]
 
-    .typewriter { font-family: 'Special Elite', monospace; }
-    .block { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em; }
+const ALL_NEXUS_INDICES: number[] = PICKER_CELLS.map(c => c.nexusIndex)
 
-    /* ─── Header ─────────────────────────────────────────────────── */
-    header {
-      padding: 18px 28px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 3px solid var(--fg);
-      background: var(--bg);
-      flex-shrink: 0;
-      z-index: 10;
-    }
+const HEX_BY_CSS: Record<number, { main: string; sat: string; dark: string }> = {
+  1:  { main: '#F1342A', sat: '#D37675', dark: '#962119' },
+  2:  { main: '#FF9D42', sat: '#D8AC84', dark: '#9A612D' },
+  3:  { main: '#B78761', sat: '#A48C7A', dark: '#67482F' },
+  4:  { main: '#F9D75F', sat: '#E7D8B0', dark: '#A68F3E' },
+  5:  { main: '#E4DF08', sat: '#8D9658', dark: '#535017' },
+  6:  { main: '#83DD3F', sat: '#799A60', dark: '#497B22' },
+  7:  { main: '#22A476', sat: '#6C9A89', dark: '#1F5841' },
+  8:  { main: '#2BDBE2', sat: '#4B9DA0', dark: '#297A7D' },
+  9:  { main: '#2B7FE3', sat: '#7C92B2', dark: '#274E87' },
+  10: { main: '#8D80FA', sat: '#908AC4', dark: '#373EB8' },
+  11: { main: '#923CF2', sat: '#A285BE', dark: '#682FA6' },
+  12: { main: '#DA55F6', sat: '#B17FBB', dark: '#AE36C8' },
+  13: { main: '#F45B7A', sat: '#C37C90', dark: '#961D3E' },
+  14: { main: '#C6C5D3', sat: '#8E8EA8', dark: '#3E3E48' },
+}
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
+const HEX_BY_NEXUS: Map<number, string> = new Map()
+for (let i = 0; i < PICKER_CELLS.length; i++) {
+  const cell = PICKER_CELLS[i]
+  const row = Math.floor(i / 14)
+  const variant = row === 0 ? 'main' : row === 1 ? 'sat' : 'dark'
+  HEX_BY_NEXUS.set(cell.nexusIndex, HEX_BY_CSS[cell.cssNum][variant])
+}
 
-    .logo-mark {
-      display: inline-flex;
-      flex-direction: column;
-      gap: 3px;
-      width: 22px;
-      transform: translateY(2px);
-    }
-    .logo-mark span { display:block; height: 5px; }
-    .logo-mark span:nth-child(1) { background: var(--magenta); }
-    .logo-mark span:nth-child(2) { background: var(--lime); }
-    .logo-mark span:nth-child(3) { background: var(--orange); }
+function hexForNexusIndex(idx: number): string {
+  return HEX_BY_NEXUS.get(idx) || '#c6c5d3'
+}
 
-    .logo-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 38px;
-      letter-spacing: 0.08em;
-      color: var(--fg);
-      line-height: 1;
-    }
+function isLightColor(nexusIndex: number): boolean {
+  const hex = hexForNexusIndex(nexusIndex)
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  const lum = (r * 299 + g * 587 + b * 114) / 1000
+  return lum > 150
+}
 
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
+const STAGEBOX_TARGETS = new Set([
+  'mixerChannel', 'mixerMaster', 'mixerAux',
+  'mixerDelayAux', 'mixerReverbAux', 'mixerGroup',
+])
 
-    .help-btn {
-      width: 22px;
-      height: 22px;
-      padding: 0;
-      border: 2px solid var(--orange);
-      border-radius: 50%;
-      background: var(--bg);
-      color: var(--orange);
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 14px;
-      line-height: 1;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .help-btn:hover {
-      transform: translate(-2px, -2px);
-      box-shadow: 4px 4px 0 var(--orange);
-    }
+const SYNTHS = new Set(['pulverisateur','heisenberg','bassline','space','gakki','tonematrix'])
+const DRUMS = new Set(['beatbox8','beatbox9','machiniste'])
+const AUDIO_DEVICES = new Set(['audioDevice'])
+const VST_DEVICES = new Set(['genericVst3PluginBeta','spitfireLabsVst3Plugin'])
+const MIDI_DEVICES = new Set(['matrixArpeggiator','noteSplitter','tonematrix'])
 
-    .brand {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 16px;
-      color: var(--cyan);
-      letter-spacing: 0.18em;
-    }
-    .version {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 13px;
-      color: var(--bg);
-      background: var(--lime);
-      padding: 3px 8px;
-      letter-spacing: 0.12em;
-    }
+const GROUP_DEVICE_LIST: Record<GroupKey, string[]> = {
+  synths: ['Pulverisateur', 'Heisenberg', 'Bassline', 'Space', 'Gakki', 'Tonematrix'],
+  drums: ['Beatbox 8', 'Beatbox 9', 'Machiniste'],
+  audio: ['Audio Track'],
+  vst: ['VST Bridge', 'Spitfire LABS'],
+}
 
-    .header-tagline {
-      flex: 1;
-      text-align: center;
-      font-family: 'Special Elite', monospace;
-      font-size: 16px;
-      color: var(--fg);
-      letter-spacing: 0.3px;
-      padding: 0 24px;
-    }
-    .tagline-sub::before {
-      content: ' + ';
-    }
+type GroupKey = 'synths' | 'drums' | 'audio' | 'vst'
 
-    /* ─── Stage: Stripes-Hintergrund + Main-Block ─────────────────── */
-    .stage {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-    }
+const GROUP_NAMES: Record<GroupKey, string> = {
+  synths: 'Synths',
+  drums: 'Drums',
+  audio: 'Audio Dev.',
+  vst: 'VST',
+}
+const GROUP_ORDER: GroupKey[] = ['synths', 'drums', 'audio', 'vst']
 
-    .color-stripes {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: row;
-      z-index: 0;
-    }
-    .color-stripe-cell { flex: 1; }
+type SlotKey = 'main' | 'second' | 'third'
+const SLOT_KEYS: SlotKey[] = ['main', 'second', 'third']
+const SLOT_LABELS: Record<SlotKey, string> = {
+  main: 'Main | Noteregion | Channels',
+  second: 'FX Chain | Automation | Aux',
+  third: 'Midi FX | Groups',
+}
 
-    /* ─── Main: shrink-to-fit, nicht stretch ──────────────────────── */
-    main {
-      position: absolute;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 240px);
-      max-width: 1200px;
-      max-height: calc(100% - 32px);
-      background: var(--bg);
-      border: 3px solid var(--fg);
-      padding: 24px 32px;
-      z-index: 1;
-      overflow: auto;
-    }
+type Preset = { name: string; colors: [number, number, number] }
+const PRESETS: Preset[] = [
+  { name: 'Aubergine',     colors: [4, 24, 28] },
+  { name: 'Greymode',      colors: [39, 40, 41] },
+  { name: 'Beach',         colors: [1, 10, 2] },
+  { name: 'Down to Earth', colors: [34, 38, 33] },
+  { name: 'Compliment',    colors: [7, 4, 11] },
+  { name: 'Acid Bath',     colors: [39, 11, 10] },
+]
 
-    @media (max-width: 1100px) {
-      main {
-        width: calc(100% - 80px);
-        top: 12px;
-        max-height: calc(100% - 24px);
+function deviceGroup(type: string): GroupKey | null {
+  if (DRUMS.has(type)) return 'drums'
+  if (SYNTHS.has(type)) return 'synths'
+  if (AUDIO_DEVICES.has(type)) return 'audio'
+  if (VST_DEVICES.has(type)) return 'vst'
+  return null
+}
+
+const ALL_DEVICE_TYPES = [
+  ...SYNTHS, ...DRUMS, ...AUDIO_DEVICES, ...MIDI_DEVICES, ...VST_DEVICES,
+  'kobolt','minimixer','crossfader','centroid',
+  'graphicalEQ','waveshaper','autoFilter','ringModulator',
+  'exciter','stereoEnhancer','curve','tinyGain',
+  'panorama','bandSplitter','audioMerger','audioSplitter',
+  'pulsar','quantum','gravity','helmholtz','quasar','rasselbock',
+  'stompboxChorus','stompboxCompressor','stompboxCrusher',
+  'stompboxDelay','stompboxFlanger','stompboxGate',
+  'stompboxParametricEqualizer','stompboxPhaser','stompboxPitchDelay',
+  'stompboxReverb','stompboxSlope','stompboxStereoDetune','stompboxTube',
+]
+
+let at: any
+let lastNexus: any = null
+
+type CableInfo = {
+  id: string
+  fromId: string | null
+  fromType: string
+  fromName: string
+  fromOrder: number
+  toId: string | null
+  toType: string
+  toName: string
+  toOrder: number
+  isNoteCable: boolean
+  originalColor: number
+}
+type RegionInfo = {
+  id: string
+  regionType: string
+  ownerDeviceId: string | null
+  trackId: string | null
+  originalColor: number
+  colorField: any
+}
+type MixerStripInfo = {
+  id: string
+  stripType: string
+  sourceDeviceId: string | null
+  originalColor: number
+  colorField: any
+}
+type DeviceInfo = { id: string; type: string; group: GroupKey | null }
+type ProjectState = {
+  cables: CableInfo[]
+  cablesById: Map<string, any>
+  regions: RegionInfo[]
+  mixerStrips: MixerStripInfo[]
+  devices: Map<string, DeviceInfo>
+  trackToDevice: Map<string, string>
+  counts: { drums: number; synths: number; audio: number; vst: number }
+  typesByGroup: Record<GroupKey, Set<string>>
+}
+
+let state: ProjectState | null = null
+
+type GroupColors = Record<SlotKey, number | null>
+let groupColors: Record<GroupKey, GroupColors> = {
+  synths: { main: null, second: null, third: null },
+  drums: { main: null, second: null, third: null },
+  audio: { main: null, second: null, third: null },
+  vst: { main: null, second: null, third: null },
+}
+
+type OverrideMode = null | 'random' | 'favorites'
+let overrideMode: OverrideMode = null
+let overrideByCableId: Map<string, number> = new Map()
+let overrideByRegionId: Map<string, number> = new Map()
+let overrideByMixerStripId: Map<string, number> = new Map()
+
+;(window as any).__colorizateur = () => ({
+  overrideMode,
+  overrideSize: overrideByCableId.size,
+  regionOverrides: overrideByRegionId.size,
+  stripOverrides: overrideByMixerStripId.size,
+  cableCount: state?.cables.length ?? 0,
+  regionCount: state?.regions.length ?? 0,
+  stripCount: state?.mixerStrips.length ?? 0,
+  groupColors,
+  favorites,
+})
+
+const FAV_KEY = 'colorizateur_favorites'
+type Favorites = [number | null, number | null, number | null]
+function loadFavorites(): Favorites {
+  try {
+    const raw = localStorage.getItem(FAV_KEY)
+    if (!raw) return [null, null, null]
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length === 3) return parsed as Favorites
+  } catch {}
+  return [null, null, null]
+}
+function saveFavorites(f: Favorites) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(f)) } catch {}
+}
+let favorites: Favorites = loadFavorites()
+
+let pickerTarget: { group: GroupKey; slot: SlotKey } | null = null
+let favEditSlot: number = 0
+let favEditDraft: Favorites = [null, null, null]
+
+function setStatus(text: string, kind: 'info' | 'ok' | 'error' | 'warning' = 'info') {
+  const el = document.getElementById('status')
+  const txt = document.getElementById('status-text')
+  if (!el || !txt) return
+  txt.textContent = text
+  el.className = `status-line ${kind}`
+}
+
+function setButtonsEnabled(enabled: boolean) {
+  for (const id of ['apply-btn','undo-btn','randomize-btn','favorites-btn','reset-btn']) {
+    const b = document.getElementById(id) as HTMLButtonElement | null
+    if (b) b.disabled = !enabled
+  }
+  document.querySelectorAll<HTMLButtonElement>('.preset-btn').forEach(b => {
+    b.disabled = !enabled
+  })
+}
+
+function renderPresetButtons() {
+  const row = document.getElementById('preset-row')
+  if (!row) return
+  const html: string[] = []
+  for (let i = 0; i < PRESETS.length; i++) {
+    const p = PRESETS[i]
+    const bandsHtml = p.colors
+      .map(c => `<div class="preset-band" style="background:${hexForNexusIndex(c)}"></div>`)
+      .join('')
+    html.push(`
+      <button class="preset-btn" data-preset="${i}" disabled title="${p.name}">
+        <div class="preset-bands">${bandsHtml}</div>
+        <span class="preset-name">${p.name}</span>
+      </button>
+    `)
+  }
+  row.innerHTML = html.join('')
+  row.querySelectorAll<HTMLButtonElement>('.preset-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const idx = parseInt(b.dataset.preset || '0', 10)
+      applyPreset(idx)
+    })
+  })
+}
+
+function applyPreset(idx: number) {
+  const preset = PRESETS[idx]
+  if (!preset) return
+
+  if (overrideMode !== null) {
+    overrideMode = null
+    overrideByCableId.clear()
+    overrideByRegionId.clear()
+    overrideByMixerStripId.clear()
+  }
+
+  for (const g of GROUP_ORDER) {
+    groupColors[g] = {
+      main: preset.colors[0],
+      second: preset.colors[1],
+      third: preset.colors[2],
+    }
+  }
+
+  renderStrips()
+  setStatus(`preset "${preset.name}" loaded — press apply to write`, 'info')
+}
+
+function readDisplayInfo(entity: any): { name: string; order: number } {
+  const direct = entity.fields?.displayName?.value
+  if (typeof direct === 'string') {
+    const ord = entity.fields?.orderAmongStrips?.value
+    return { name: direct, order: typeof ord === 'number' ? ord : 0 }
+  }
+  const dp = entity.fields?.displayParameters
+  if (dp?.fields) {
+    const n = dp.fields.displayName?.value
+    const o = dp.fields.orderAmongStrips?.value
+    return {
+      name: typeof n === 'string' ? n : '',
+      order: typeof o === 'number' ? o : 0,
+    }
+  }
+  return { name: '', order: 0 }
+}
+
+function traceFromDeviceForGroup(
+  startId: string,
+  devices: Map<string, DeviceInfo>,
+  cables: CableInfo[]
+): string | null {
+  const visited = new Set<string>()
+  const queue: string[] = [startId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    const dev = devices.get(cur)
+    if (dev?.group) return cur
+    for (const c of cables) {
+      if (c.isNoteCable) continue
+      if (c.toId === cur && c.fromId && !visited.has(c.fromId)) {
+        queue.push(c.fromId)
       }
     }
+  }
+  return null
+}
 
-    /* ─── Inputs ─────────────────────────────────────────────────── */
-    .input-row {
-      display: flex;
-      gap: 0;
-      margin-bottom: 14px;
+// Vorwärts durch NOTE-Kabel bis Group-Device (Arpeggiator → Synth)
+function traceForwardThroughNotesForGroup(
+  startId: string,
+  devices: Map<string, DeviceInfo>,
+  cables: CableInfo[]
+): GroupKey | null {
+  const visited = new Set<string>()
+  const queue: string[] = [startId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    const dev = devices.get(cur)
+    if (dev?.group) return dev.group
+    for (const c of cables) {
+      if (!c.isNoteCable) continue
+      if (c.fromId === cur && c.toId && !visited.has(c.toId)) {
+        queue.push(c.toId)
+      }
     }
-    input[type="text"] {
-      flex: 1;
-      background: var(--panel);
-      border: 2px solid var(--fg);
-      padding: 14px 16px;
-      font-family: 'Special Elite', monospace;
-      font-size: 13px;
-      color: var(--fg);
-      outline: none;
-    }
-    input[type="text"]:focus { border-color: var(--lime); }
-    input[type="text"]::placeholder {
-      color: var(--dim);
-      font-family: 'Special Elite', monospace;
-      font-size: 13px;
-    }
+  }
+  return null
+}
 
-    /* ─── Buttons ────────────────────────────────────────────────── */
-    button {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 15px;
-      letter-spacing: 0.12em;
-      padding: 14px 22px;
-      border: 2px solid;
-      cursor: pointer;
-      transition: none;
-      background: transparent;
-      color: var(--fg);
-      border-color: var(--fg);
-    }
-    button:hover:not(:disabled) {
-      transform: translate(-2px, -2px);
-      box-shadow: 4px 4px 0 var(--fg);
-    }
+function readState(nexus: any): ProjectState {
+  const qe = nexus.queryEntities
 
-    button.primary {
-      background: var(--lime);
-      color: var(--bg);
-      border-color: var(--lime);
-    }
-    button.secondary {
-      background: var(--purple);
-      color: var(--fg);
-      border-color: var(--purple);
-    }
-    button.magenta {
-      background: var(--magenta);
-      color: var(--bg);
-      border-color: var(--magenta);
-    }
-    button.orange-btn {
-      background: var(--orange);
-      color: var(--bg);
-      border-color: var(--orange);
-    }
-    button.accent {
-      background: var(--orange);
-      color: var(--bg);
-      border-color: var(--orange);
-    }
-    button.ghost {
-      background: var(--bg);
-      color: var(--fg);
-      border-color: var(--fg);
-    }
-    button.danger {
-      background: var(--red);
-      color: var(--fg);
-      border-color: var(--red);
-    }
+  const allDevices: any[] = []
+  for (const type of ALL_DEVICE_TYPES) {
+    for (const d of qe.ofTypes(type).get() as any[]) allDevices.push(d)
+  }
+  const audioCables = qe.ofTypes('desktopAudioCable').get() as any[]
+  const noteCables = qe.ofTypes('desktopNoteCable').get() as any[]
 
-    button:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-    button:disabled:hover { transform: none; box-shadow: none; }
+  const mixerTargets: any[] = []
+  for (const t of STAGEBOX_TARGETS) {
+    for (const m of qe.ofTypes(t).get() as any[]) mixerTargets.push(m)
+  }
 
-    .icon-btn {
-      padding: 14px 16px;
-      min-width: 0;
-    }
+  const devices = new Map<string, DeviceInfo>()
+  for (const d of allDevices) {
+    devices.set(d.id, {
+      id: d.id,
+      type: d.entityType,
+      group: deviceGroup(d.entityType),
+    })
+  }
 
-    /* ─── Status line ────────────────────────────────────────────── */
-    .status-line {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      padding: 12px 16px;
-      border: 2px solid var(--border);
-      background: var(--panel);
-      font-family: 'Special Elite', monospace;
-      font-size: 13px;
-      margin-bottom: 22px;
-      flex-wrap: wrap;
-    }
-    .status-line .dot {
-      width: 10px; height: 10px;
-      background: var(--dim);
-      flex-shrink: 0;
-    }
-    .status-line.ok .dot { background: var(--lime); }
-    .status-line.error .dot { background: var(--red); }
-    .status-line.warning .dot { background: var(--yellow); }
-    .status-line.info .dot { background: var(--orange); }
+  const cablesById = new Map<string, any>()
+  const cables: CableInfo[] = []
 
-    .status-counts {
-      display: flex;
-      gap: 6px;
-      margin-left: auto;
-      flex-wrap: wrap;
-    }
-    .count-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 10px;
-      border: 1px solid var(--fg);
-      background: var(--bg);
-    }
-    .count-label {
-      font-family: 'Special Elite', monospace;
-      font-size: 11px;
-      color: var(--dim);
-      letter-spacing: 0.3px;
-    }
-    .count-value {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 18px;
-      color: var(--fg);
-      letter-spacing: 0.04em;
-      line-height: 1;
+  const ingest = (cable: any, isNote: boolean) => {
+    cablesById.set(cable.id, cable)
+    const fromVal = cable.fields.fromSocket?.value
+    const toVal = cable.fields.toSocket?.value
+    const fromId = fromVal?.entityId || null
+    const toId = toVal?.entityId || null
+    cables.push({
+      id: cable.id,
+      fromId,
+      fromType: fromVal?.entityType || '?',
+      fromName: '',
+      fromOrder: 0,
+      toId,
+      toType: toVal?.entityType || '?',
+      toName: '',
+      toOrder: 0,
+      isNoteCable: isNote,
+      originalColor: cable.fields.colorIndex?.value ?? 0,
+    })
+  }
+  for (const c of audioCables) ingest(c, false)
+  for (const c of noteCables) ingest(c, true)
+
+  const regions: RegionInfo[] = []
+  const trackToDevice = new Map<string, string>()
+
+  const regionTypes = ['audioRegion', 'noteRegion', 'patternRegion', 'automationRegion']
+
+  for (const regionType of regionTypes) {
+    let entities: any[] = []
+    try {
+      entities = qe.ofTypes(regionType).get() as any[]
+    } catch (e) {
+      continue
     }
 
-    /* ─── STRIPS ─────────────────────────────────────────────────── */
-    .strips {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      margin-bottom: 22px;
-      border: 2px solid var(--fg);
-    }
+    for (const ent of entities) {
+      const subRegion = ent.fields?.region
+      const colorField = subRegion?.fields?.colorIndex
+      if (!colorField) continue
 
-    .strip {
-      display: flex;
-      align-items: stretch;
-      min-height: 110px;
-      cursor: pointer;
-      border-bottom: 2px solid var(--fg);
-      position: relative;
-    }
-    .strip:last-child { border-bottom: none; }
-    .strip:hover { outline: 2px solid var(--cyan); outline-offset: -2px; z-index: 2; }
+      const trackRef = ent.fields?.track?.value
+      const trackId = trackRef?.entityId || null
 
-    .strip-label {
-      flex: 1;
-      min-width: 0;
-      padding: 18px 26px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 6px;
-      background: var(--bg);
+      regions.push({
+        id: ent.id,
+        regionType,
+        ownerDeviceId: null,
+        trackId,
+        originalColor: colorField.value ?? 0,
+        colorField,
+      })
     }
-    .strip-name {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 54px;
-      letter-spacing: 0.06em;
-      line-height: 0.9;
-    }
-    .strip-devicelist {
-      font-family: 'Special Elite', monospace;
-      font-size: 12px;
-      letter-spacing: 0.3px;
-      color: var(--dim);
-      line-height: 1.4;
-    }
-    .strip-meta {
-      font-family: 'Special Elite', monospace;
-      font-size: 12px;
-      color: var(--dim);
-      letter-spacing: 0.3px;
-      min-height: 18px;
-    }
+  }
 
-    .strip-bands {
-      display: flex;
-      width: 460px;
-      flex-shrink: 0;
+  const playerTrackTypes = ['noteTrack', 'audioTrack', 'patternTrack']
+  for (const trackType of playerTrackTypes) {
+    try {
+      const tracks = qe.ofTypes(trackType).get() as any[]
+      for (const track of tracks) {
+        const playerRef = track.fields?.player?.value
+        if (playerRef?.entityId) {
+          trackToDevice.set(track.id, playerRef.entityId)
+        }
+      }
+    } catch {}
+  }
+  try {
+    const automationTracks = qe.ofTypes('automationTrack').get() as any[]
+    for (const track of automationTracks) {
+      const paramRef = track.fields?.automatedParameter?.value
+      if (paramRef?.entityId) {
+        trackToDevice.set(track.id, paramRef.entityId)
+      }
     }
-    .strip-band {
-      flex: 1;
-      position: relative;
-      border-left: 2px solid var(--fg);
-      transition: filter 0.1s ease;
-    }
-    .strip-band:hover { filter: brightness(1.3); }
+  } catch {}
 
-    /* ─── Empty Slots: + Symbol + Diagonale Streifen ─────────────── */
-    .strip-band.empty {
-      background: repeating-linear-gradient(
-        45deg,
-        #0a0a0a,
-        #0a0a0a 8px,
-        #161616 8px,
-        #161616 16px
-      ) !important;
+  for (const r of regions) {
+    if (r.trackId) {
+      const devId = trackToDevice.get(r.trackId)
+      if (devId) r.ownerDeviceId = devId
     }
-    .strip-band.empty::before {
-      content: '+';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -55%);
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 56px;
-      color: rgba(255, 255, 255, 0.25);
-      line-height: 1;
-      pointer-events: none;
-      transition: color 0.1s ease, transform 0.1s ease;
-    }
-    .strip-band.empty:hover::before {
-      transform: translate(-50%, -55%) scale(1.1);
-    }
-    .strip[data-group="synths"] .strip-band.empty:hover::before { color: var(--magenta); }
-    .strip[data-group="drums"]  .strip-band.empty:hover::before { color: var(--orange); }
-    .strip[data-group="audio"]  .strip-band.empty:hover::before { color: var(--lime); }
-    .strip[data-group="vst"]    .strip-band.empty:hover::before { color: var(--cyan); }
+  }
 
-    .strip-band-label {
-      position: absolute;
-      bottom: 8px;
-      left: 10px;
-      right: 10px;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      color: rgba(255, 255, 255, 0.85);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-      z-index: 1;
+  const mixerStrips: MixerStripInfo[] = []
+  const mixerStripTypes = ['mixerChannel', 'mixerGroup', 'mixerAux']
+  for (const stripType of mixerStripTypes) {
+    let entities: any[] = []
+    try {
+      entities = qe.ofTypes(stripType).get() as any[]
+    } catch {
+      continue
     }
-    .strip-band-label.dark-text {
-      color: rgba(0, 0, 0, 0.85);
-      text-shadow: none;
-    }
-    .strip-band.empty .strip-band-label {
-      color: rgba(255, 255, 255, 0.5);
-    }
+    for (const ent of entities) {
+      const colorField = ent.fields?.displayParameters?.fields?.colorIndex
+      if (!colorField) continue
 
-    .strip.disabled { opacity: 0.25; cursor: not-allowed; }
-    .strip.disabled:hover { outline: none; }
-    .strip.disabled .strip-band.empty:hover::before {
-      color: rgba(255, 255, 255, 0.25);
-      transform: translate(-50%, -55%);
-    }
-    .strip.disabled .strip-band:hover { filter: none; }
+      let sourceDeviceId: string | null = null
+      for (const c of cables) {
+        if (c.isNoteCable) continue
+        if (c.toId === ent.id && c.fromId) {
+          const fromDev = devices.get(c.fromId)
+          if (fromDev?.group) {
+            sourceDeviceId = c.fromId
+            break
+          }
+          if (!sourceDeviceId) sourceDeviceId = c.fromId
+        }
+      }
+      if (sourceDeviceId && !devices.get(sourceDeviceId)?.group) {
+        const traced = traceFromDeviceForGroup(sourceDeviceId, devices, cables)
+        if (traced) sourceDeviceId = traced
+      }
 
-    .strip[data-group="synths"] .strip-name { color: var(--magenta); }
-    .strip[data-group="drums"]  .strip-name { color: var(--orange); }
-    .strip[data-group="audio"]  .strip-name { color: var(--lime); }
-    .strip[data-group="vst"]    .strip-name { color: var(--cyan); }
+      mixerStrips.push({
+        id: ent.id,
+        stripType,
+        sourceDeviceId,
+        originalColor: colorField.value ?? 0,
+        colorField,
+      })
+    }
+  }
 
-    /* ─── Action bar ─────────────────────────────────────────────── */
-    .action-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding-top: 18px;
-      border-top: 2px solid var(--fg);
-      align-items: center;
-    }
-    .action-bar .spacer { flex: 1; }
+  const counts = { drums: 0, synths: 0, audio: 0, vst: 0 }
+  const typesByGroup: Record<GroupKey, Set<string>> = {
+    synths: new Set(),
+    drums: new Set(),
+    audio: new Set(),
+    vst: new Set(),
+  }
+  for (const d of devices.values()) {
+    if (d.group === 'drums') { counts.drums++; typesByGroup.drums.add(d.type) }
+    else if (d.group === 'synths') { counts.synths++; typesByGroup.synths.add(d.type) }
+    else if (d.group === 'audio') { counts.audio++; typesByGroup.audio.add(d.type) }
+    else if (d.group === 'vst') { counts.vst++; typesByGroup.vst.add(d.type) }
+  }
 
-    /* ─── Preset Buttons (kompakt, halbe Höhe) ────────────────────── */
-    .preset-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .preset-label {
-      font-family: 'Special Elite', monospace;
-      font-size: 10px;
-      letter-spacing: 0.18em;
-      color: var(--fg);
-      text-transform: lowercase;
-      line-height: 1;
-    }
-    .preset-row {
-      display: flex;
-      gap: 6px;
-      align-items: stretch;
-    }
-    .preset-btn {
-      position: relative;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 13px;
-      letter-spacing: 0.1em;
-      padding: 0;
-      border: 2px solid var(--fg);
-      cursor: pointer;
-      background: var(--bg);
-      color: var(--fg);
-      height: 26px;
-      min-width: 86px;
-      display: flex;
-      align-items: stretch;
-      overflow: hidden;
-    }
-    .preset-btn:hover:not(:disabled) {
-      transform: translate(-2px, -2px);
-      box-shadow: 4px 4px 0 var(--fg);
-    }
-    .preset-btn:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-    .preset-btn:disabled:hover { transform: none; box-shadow: none; }
+  return { cables, cablesById, regions, mixerStrips, devices, trackToDevice, counts, typesByGroup }
+}
 
-    .preset-bands {
-      display: flex;
-      flex: 1;
-      align-items: stretch;
-    }
-    .preset-band {
-      flex: 1;
-    }
-    .preset-name {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 13px;
-      letter-spacing: 0.1em;
-      color: var(--fg);
-      text-shadow:
-        -1px -1px 0 #000, 1px -1px 0 #000,
-        -1px 1px 0 #000,  1px 1px 0 #000,
-        0 0 4px rgba(0,0,0,0.8);
-      pointer-events: none;
-    }
+function targetColorForCable(cable: CableInfo): number | null {
+  if (!state) return null
 
-    /* ─── Picker overlay ─────────────────────────────────────────── */
-    .picker-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.92);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-    }
-    .picker-overlay.active { display: flex; }
+  if (overrideMode !== null) {
+    const o = overrideByCableId.get(cable.id)
+    return o ?? null
+  }
 
-    .picker {
-      background: var(--bg);
-      border: 3px solid var(--fg);
-      padding: 24px;
-      max-width: 820px;
-      width: 92%;
-    }
+  const fromDev = cable.fromId ? state.devices.get(cable.fromId) : null
+  const toDev = cable.toId ? state.devices.get(cable.toId) : null
 
-    .picker-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 16px;
-      padding-bottom: 14px;
-      border-bottom: 2px solid var(--fg);
+  if (cable.isNoteCable) {
+    if (toDev?.group) {
+      return groupColors[toDev.group].third
     }
-    .picker-title {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 28px;
-      letter-spacing: 0.06em;
-      color: var(--magenta);
-    }
-    .picker-sub {
-      font-family: 'Special Elite', monospace;
-      font-size: 12px;
-      color: var(--dim);
-    }
+    return null
+  }
 
-    .picker-grid {
-      display: grid;
-      grid-template-columns: repeat(14, 1fr);
-      gap: 5px;
-      margin-bottom: 16px;
-    }
-    .picker-cell {
-      aspect-ratio: 1;
-      cursor: pointer;
-      border: 2px solid transparent;
-    }
-    .picker-cell:hover {
-      transform: scale(1.15);
-      border-color: var(--fg);
-      z-index: 1;
-      position: relative;
-    }
-    .picker-cell.selected {
-      box-shadow: 0 0 0 3px var(--lime);
-    }
+  if (fromDev?.group) {
+    return groupColors[fromDev.group].main
+  }
 
-    .fav-slots {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-      padding: 12px;
-      border: 2px solid var(--fg);
-    }
-    .fav-slot {
-      flex: 1;
-      aspect-ratio: 1.6;
-      border: 2px dashed var(--fg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      position: relative;
-    }
-    .fav-slot.filled { border-style: solid; }
-    .fav-slot.active { box-shadow: 0 0 0 3px var(--lime); }
-    .fav-slot-tag {
-      position: absolute;
-      top: 4px;
-      left: 8px;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 16px;
-      color: rgba(255, 255, 255, 0.85);
-      letter-spacing: 0.1em;
-    }
-    .fav-slot.dark-text .fav-slot-tag { color: rgba(0, 0, 0, 0.85); }
+  const sourceGroup = traceSourceGroup(cable.fromId)
+  if (sourceGroup) {
+    return groupColors[sourceGroup].second
+  }
+  return null
+}
 
-    .picker-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .picker-actions .info {
-      font-family: 'Special Elite', monospace;
-      font-size: 12px;
-      color: var(--dim);
-    }
-    .picker-actions .btn-row { display: flex; gap: 8px; }
+// ─── Region-Color: mit Trace-Fallback für Non-Group-Owner ─────────────
+function targetColorForRegion(region: RegionInfo): number | null {
+  if (!state) return null
 
-    /* ─── Help Modal ─────────────────────────────────────────────── */
-    .help-modal {
-      background: var(--bg);
-      border: 3px solid var(--fg);
-      padding: 28px 32px;
-      max-width: 760px;
-      width: 92%;
-      max-height: 86vh;
-      overflow-y: auto;
-    }
-    .help-modal .picker-header {
-      align-items: center;
-    }
-    .help-content {
-      font-family: 'Special Elite', monospace;
-      font-size: 13px;
-      line-height: 1.6;
-      color: var(--fg);
-    }
-    .help-content h3 {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 22px;
-      letter-spacing: 0.06em;
-      color: var(--lime);
-      margin: 22px 0 8px 0;
-      font-weight: normal;
-    }
-    .help-content h3:first-child {
-      margin-top: 0;
-    }
-    .help-content p {
-      margin: 0 0 10px 0;
-    }
-    .help-content ul, .help-content ol {
-      margin: 0 0 10px 0;
-      padding-left: 22px;
-    }
-    .help-content li {
-      margin-bottom: 6px;
-    }
-    .help-content b {
-      color: var(--cyan);
-      font-weight: normal;
-    }
-    .help-footer {
-      margin-top: 24px;
-      padding-top: 18px;
-      border-top: 2px solid var(--border);
-      color: var(--dim);
-      font-size: 12px;
-    }
-    .help-footer a {
-      color: var(--lime);
-      text-decoration: none;
-      border-bottom: 1px solid var(--lime);
-    }
-    .help-footer a:hover {
-      color: var(--bg);
-      background: var(--lime);
-    }
+  if (overrideMode !== null) {
+    const o = overrideByRegionId.get(region.id)
+    return o ?? null
+  }
 
-    #login-section, #main-panel { display: none; }
-  </style>
-</head>
-<body>
-  <header>
-    <div class="logo">
-      <div class="logo-title">the color guy</div>
-    </div>
-    <div class="header-tagline">
-      <span class="tagline-main">a bulk recolor tool for audiotool</span>
-      <span class="tagline-sub">cables, regions, channelstrips</span>
-    </div>
-    <div class="header-right">
-      <button id="help-btn" class="help-btn" title="Help">?</button>
-      <span class="brand">snad industries</span>
-    </div>
-  </header>
+  if (!region.ownerDeviceId) return null
 
-  <div class="stage">
-    <div class="color-stripes" id="color-stripes"></div>
+  const dev = state.devices.get(region.ownerDeviceId)
 
-    <main>
-      <div id="login-section">
-        <div class="status-line" id="status-init">
-          <span class="dot"></span>
-          <span>connecting to audiotool...</span>
+  // Direkter Owner ist in einer Hauptgruppe
+  if (dev?.group) {
+    const slot: SlotKey = region.regionType === 'automationRegion' ? 'second' : 'main'
+    return groupColors[dev.group][slot]
+  }
+
+  // Owner ist Non-Group-Device (Arpeggiator, Stompbox, Rasselbock etc.) → tracen
+  if (region.regionType === 'noteRegion' || region.regionType === 'patternRegion') {
+    // 1. Vorwärts durch Note-Cables (Arpeggiator → Synth)
+    const fwdGroup = traceForwardThroughNotesForGroup(region.ownerDeviceId, state.devices, state.cables)
+    if (fwdGroup) {
+      return groupColors[fwdGroup].third
+    }
+    // 2. Fallback: rückwärts durch Audio-Cables (Rasselbock & andere Pattern-FX)
+    //    Pattern-FX im Audio-Pfad einer Gruppe → Slot 'third' der Source-Gruppe
+    const backGroup = traceSourceGroup(region.ownerDeviceId)
+    if (backGroup) {
+      return groupColors[backGroup].third
+    }
+    return null
+  }
+
+  if (region.regionType === 'automationRegion') {
+    const sourceGroup = traceSourceGroup(region.ownerDeviceId)
+    if (sourceGroup) {
+      return groupColors[sourceGroup].second
+    }
+    return null
+  }
+
+  return null
+}
+
+function targetColorForMixerStrip(strip: MixerStripInfo): number | null {
+  if (!state) return null
+
+  if (overrideMode !== null) {
+    const o = overrideByMixerStripId.get(strip.id)
+    return o ?? null
+  }
+
+  if (!strip.sourceDeviceId) return null
+  const dev = state.devices.get(strip.sourceDeviceId)
+  if (!dev?.group) return null
+
+  let slot: SlotKey
+  if (strip.stripType === 'mixerGroup') slot = 'third'
+  else if (strip.stripType === 'mixerAux') slot = 'second'
+  else slot = 'main'
+
+  return groupColors[dev.group][slot]
+}
+
+function traceSourceGroup(deviceId: string | null): GroupKey | null {
+  if (!state || !deviceId) return null
+  const visited = new Set<string>()
+  const queue: string[] = [deviceId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    const dev = state.devices.get(cur)
+    if (dev?.group) return dev.group
+    for (const c of state.cables) {
+      if (c.isNoteCable) continue
+      if (c.toId === cur && c.fromId && !visited.has(c.fromId)) {
+        queue.push(c.fromId)
+      }
+    }
+  }
+  return null
+}
+
+function renderStrips() {
+  const container = document.getElementById('strips')!
+  const html: string[] = []
+
+  for (const g of GROUP_ORDER) {
+    const colors = groupColors[g]
+    const count = state?.counts[g] ?? 0
+    const disabled = state !== null && count === 0
+
+    const bandHtml = SLOT_KEYS.map(slot => {
+      const c = colors[slot]
+      const filled = c !== null
+      const emptyCls = filled ? '' : ' empty'
+      const bg = filled ? hexForNexusIndex(c!) : 'transparent'
+      const labelCls = filled && isLightColor(c!) ? ' dark-text' : ''
+      const label = SLOT_LABELS[slot]
+      const styleAttr = filled ? `style="background:${bg}"` : ''
+      return `
+        <div class="strip-band${emptyCls}" data-group="${g}" data-slot="${slot}" ${styleAttr}>
+          <span class="strip-band-label${labelCls}">${label}</span>
         </div>
-        <div class="input-row">
-          <button id="login-btn" class="primary">Login with Audiotool</button>
+      `
+    }).join('')
+
+    let meta: string
+    if (state === null) meta = '&nbsp;'
+    else if (count === 0) meta = '— no devices in project'
+    else if (overrideMode === 'random') meta = `${count} device${count === 1 ? '' : 's'} · random override`
+    else if (overrideMode === 'favorites') meta = `${count} device${count === 1 ? '' : 's'} · favorites override`
+    else {
+      const filled = SLOT_KEYS.filter(s => colors[s] !== null).length
+      if (filled === 0) meta = `${count} device${count === 1 ? '' : 's'} · click slots to pick`
+      else if (filled < 3) meta = `${count} device${count === 1 ? '' : 's'} · ${filled}/3 slots set`
+      else meta = `${count} device${count === 1 ? '' : 's'} · ready`
+    }
+
+    const deviceListHtml = `<div class="strip-devicelist">${GROUP_DEVICE_LIST[g].join(' · ')}</div>`
+
+    html.push(`
+      <div class="strip ${disabled ? 'disabled' : ''}" data-group="${g}">
+        <div class="strip-label">
+          <div class="strip-name">${GROUP_NAMES[g]}</div>
+          ${deviceListHtml}
+          <div class="strip-meta">${meta}</div>
+        </div>
+        <div class="strip-bands">
+          ${bandHtml}
         </div>
       </div>
+    `)
+  }
 
-      <div id="main-panel">
-        <div class="input-row">
-          <input type="text" id="project-url" placeholder="paste audiotool project url..." />
-          <button id="read-btn" class="primary">Read</button>
-        </div>
+  container.innerHTML = html.join('')
 
-        <div class="status-line ok" id="status">
-          <span class="dot"></span>
-          <span id="status-text">connected — paste a project url</span>
-        </div>
+  container.querySelectorAll<HTMLElement>('.strip:not(.disabled) .strip-band').forEach(el => {
+    el.addEventListener('click', () => {
+      const g = el.dataset.group as GroupKey
+      const slot = el.dataset.slot as SlotKey
+      if (overrideMode !== null) {
+        overrideMode = null
+        overrideByCableId.clear()
+        overrideByRegionId.clear()
+        overrideByMixerStripId.clear()
+      }
+      openPicker(g, slot)
+    })
+  })
+}
 
-        <div class="strips" id="strips"></div>
+function renderSummary() {
+  // Count-Pills wurden entfernt
+}
 
-        <div class="action-bar">
-          <button id="apply-btn" class="primary" disabled>▸ Apply</button>
-          <button id="undo-btn" class="ghost" disabled>Undo</button>
-          <button id="randomize-btn" class="magenta" disabled>Randomize</button>
-          <button id="favorites-btn" class="orange-btn" disabled>★ Your Fav 3</button>
-          <div class="preset-group">
-            <div class="preset-label">presets</div>
-            <div id="preset-row" class="preset-row"></div>
-          </div>
-          <div class="spacer"></div>
-          <button id="reset-btn" class="ghost" disabled>Reset</button>
-        </div>
+function openPicker(group: GroupKey, slot: SlotKey) {
+  pickerTarget = { group, slot }
+  document.getElementById('picker-title')!.textContent =
+    `${GROUP_NAMES[group]} · ${SLOT_LABELS[slot]}`
+  renderPickerGrid(groupColors[group][slot])
+  document.getElementById('picker-overlay')!.classList.add('active')
+}
+
+function renderPickerGrid(selectedNexusIdx: number | null) {
+  const grid = document.getElementById('picker-grid')!
+  const html: string[] = []
+  for (let pos = 0; pos < PICKER_CELLS.length; pos++) {
+    const cell = PICKER_CELLS[pos]
+    const sel = cell.nexusIndex === selectedNexusIdx ? ' selected' : ''
+    html.push(`<div class="picker-cell${sel}" data-nexus="${cell.nexusIndex}" style="background:${hexForNexusIndex(cell.nexusIndex)}" title="${cell.name}"></div>`)
+  }
+  grid.innerHTML = html.join('')
+  grid.querySelectorAll<HTMLElement>('.picker-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      const nexus = parseInt(el.dataset.nexus || '0', 10)
+      pickColor(nexus)
+    })
+  })
+}
+
+function pickColor(nexusIdx: number) {
+  if (!pickerTarget) return
+  groupColors[pickerTarget.group][pickerTarget.slot] = nexusIdx
+  closePicker()
+  renderStrips()
+  setStatus('color set — press apply to write to project', 'info')
+}
+
+function closePicker() {
+  pickerTarget = null
+  document.getElementById('picker-overlay')!.classList.remove('active')
+}
+
+function applyFavorites() {
+  if (!state) {
+    setStatus('read a project first', 'warning')
+    return
+  }
+  openFavEditor()
+}
+
+async function applyFavoritesNow() {
+  if (!state || !lastNexus) return
+  const validFavs = favEditDraft.filter(f => f !== null) as number[]
+  if (validFavs.length === 0) return
+
+  favorites = [...favEditDraft] as Favorites
+  saveFavorites(favorites)
+
+  overrideMode = 'favorites'
+  overrideByCableId = new Map()
+  overrideByRegionId = new Map()
+  overrideByMixerStripId = new Map()
+  for (const c of state.cables) {
+    overrideByCableId.set(c.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+  }
+  for (const r of state.regions) {
+    overrideByRegionId.set(r.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+  }
+  for (const s of state.mixerStrips) {
+    overrideByMixerStripId.set(s.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+  }
+
+  closeFavEditor()
+  renderStrips()
+  setStatus(`favorites applied — coloring ${state.cables.length} cables...`, 'info')
+  await applyColors()
+}
+
+function openFavEditor() {
+  favEditDraft = [...favorites] as Favorites
+  const firstEmpty = favEditDraft.findIndex(f => f === null)
+  favEditSlot = firstEmpty >= 0 ? firstEmpty : 0
+  renderFavSlots()
+  renderFavGrid()
+  updateFavApplyBtn()
+  document.getElementById('fav-overlay')!.classList.add('active')
+}
+
+function renderFavSlots() {
+  const wrap = document.getElementById('fav-slots')!
+  const labels = ['1', '2', '3']
+  const html: string[] = []
+  for (let i = 0; i < 3; i++) {
+    const c = favEditDraft[i]
+    const filled = c !== null
+    const isActive = i === favEditSlot
+    const bg = filled ? hexForNexusIndex(c!) : 'transparent'
+    const dark = filled && isLightColor(c!)
+    html.push(`
+      <div class="fav-slot ${filled ? 'filled' : 'empty'} ${isActive ? 'active' : ''} ${dark ? 'dark-text' : ''}"
+           data-slot="${i}" style="background:${bg}">
+        <span class="fav-slot-tag">${labels[i]}</span>
       </div>
-    </main>
-  </div>
+    `)
+  }
+  wrap.innerHTML = html.join('')
+  wrap.querySelectorAll<HTMLElement>('.fav-slot').forEach(el => {
+    el.addEventListener('click', () => {
+      favEditSlot = parseInt(el.dataset.slot || '0', 10)
+      renderFavSlots()
+      renderFavGrid()
+    })
+  })
+}
 
-  <div class="picker-overlay" id="picker-overlay">
-    <div class="picker">
-      <div class="picker-header">
-        <div>
-          <div class="picker-title" id="picker-title">Pick color</div>
-          <div class="picker-sub" id="picker-sub">14 × 3 audiotool palette</div>
-        </div>
-      </div>
-      <div class="picker-grid" id="picker-grid"></div>
-      <div class="picker-actions">
-        <div class="info">click a color to apply</div>
-        <button id="picker-cancel" class="ghost">Cancel</button>
-      </div>
-    </div>
-  </div>
+function renderFavGrid() {
+  const grid = document.getElementById('fav-grid')!
+  const selected = favEditDraft[favEditSlot]
+  const html: string[] = []
+  for (let pos = 0; pos < PICKER_CELLS.length; pos++) {
+    const cell = PICKER_CELLS[pos]
+    const sel = cell.nexusIndex === selected ? ' selected' : ''
+    html.push(`<div class="picker-cell${sel}" data-nexus="${cell.nexusIndex}" style="background:${hexForNexusIndex(cell.nexusIndex)}" title="${cell.name}"></div>`)
+  }
+  grid.innerHTML = html.join('')
+  grid.querySelectorAll<HTMLElement>('.picker-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      const nexus = parseInt(el.dataset.nexus || '0', 10)
+      favEditDraft[favEditSlot] = nexus
+      const nextEmpty = favEditDraft.findIndex((f, i) => i > favEditSlot && f === null)
+      if (nextEmpty >= 0) favEditSlot = nextEmpty
+      renderFavSlots()
+      renderFavGrid()
+      updateFavApplyBtn()
+    })
+  })
+}
 
-  <div class="picker-overlay" id="fav-overlay">
-    <div class="picker">
-      <div class="picker-header">
-        <div>
-          <div class="picker-title">★ Favorites</div>
-          <div class="picker-sub">pick three colors — they get spread randomly across all cables</div>
-        </div>
-      </div>
+function updateFavApplyBtn() {
+  const btn = document.getElementById('fav-apply') as HTMLButtonElement
+  btn.disabled = favEditDraft.some(f => f === null)
+}
 
-      <div class="fav-slots" id="fav-slots"></div>
+function clearFavDraft() {
+  favEditDraft = [null, null, null]
+  favEditSlot = 0
+  renderFavSlots()
+  renderFavGrid()
+  updateFavApplyBtn()
+}
 
-      <div class="picker-grid" id="fav-grid"></div>
+function closeFavEditor() {
+  document.getElementById('fav-overlay')!.classList.remove('active')
+}
 
-      <div class="picker-actions">
-        <div class="info" id="fav-info">click a color to fill the active slot</div>
-        <div class="btn-row">
-          <button id="fav-clear" class="ghost">Clear</button>
-          <button id="fav-cancel" class="ghost">Cancel</button>
-          <button id="fav-apply" class="primary" disabled>▸ Apply</button>
-        </div>
-      </div>
-    </div>
-  </div>
+async function readProject(url: string) {
+  if (!at) return
+  try {
+    setStatus('opening project...', 'info')
+    const nexus = await at.open(url)
+    await nexus.start()
+    lastNexus = nexus
+    ;(window as any).nexus = nexus
 
-  <div class="picker-overlay" id="help-overlay">
-    <div class="help-modal">
-      <div class="picker-header">
-        <div>
-          <div class="picker-title" style="color: var(--lime);">Help</div>
-          <div class="picker-sub">how colorizateur works</div>
-        </div>
-        <button id="help-close" class="ghost">Close</button>
-      </div>
+    setStatus('reading...', 'info')
+    state = readState(nexus)
+    ;(window as any).state = state
 
-      <div class="help-content">
-        <h3>What it does</h3>
-        <p>The Color Guy reads an Audiotool project, groups all devices into four families (Synths, Drums, Audio Devices, VST), and writes coordinated colors to every cable, region and mixer strip in the project.</p>
+    const total = state.counts.drums + state.counts.synths + state.counts.audio + state.counts.vst
+    if (total === 0) {
+      setStatus('no sound sources found in project', 'warning')
+      setButtonsEnabled(false)
+      return
+    }
 
-        <h3>Workflow</h3>
-        <ol>
-          <li>Log in with your Audiotool account.</li>
-          <li>Paste a project URL and press <b>Read</b>.</li>
-          <li>Pick colors per group — either by clicking the slots, or by using a preset, randomize, or your fav 3.</li>
-          <li>Press <b>Apply</b> to write the colors to the project.</li>
-        </ol>
+    overrideMode = null
+    overrideByCableId.clear()
+    overrideByRegionId.clear()
+    overrideByMixerStripId.clear()
 
-        <h3>The three slots per group</h3>
-        <ul>
-          <li><b>Slot 1 — Main | Noteregion | Channels:</b> direct audio cables out of the device, audio/note/pattern regions, mixer channels.</li>
-          <li><b>Slot 2 — FX Chain | Automation | Aux:</b> cables running through FX, automation regions, aux strips.</li>
-          <li><b>Slot 3 — Midi FX | Groups:</b> note cables and group strips.</li>
-        </ul>
+    const regionsByType: Record<string, number> = {}
+    for (const r of state.regions) {
+      regionsByType[r.regionType] = (regionsByType[r.regionType] || 0) + 1
+    }
+    console.log('[colorizateur] Regions found:', regionsByType, 'Total:', state.regions.length)
 
-        <h3>Buttons</h3>
-        <ul>
-          <li><b>Apply</b> — writes the current slot colors to the project.</li>
-          <li><b>Undo</b> — reverts the last apply.</li>
-          <li><b>Randomize</b> — picks twelve unique colors from the palette and assigns them across the project. The same twelve colors end up in the project and in the slots.</li>
-          <li><b>★ Your Fav 3</b> — opens an editor to pick three colors. They get spread randomly across all cables, regions and strips.</li>
-          <li><b>Presets</b> — five hand-picked color schemes that fill all slots at once.</li>
-          <li><b>Reset</b> — clears all slot selections (does not change the project).</li>
-        </ul>
+    const stripsByType: Record<string, number> = {}
+    for (const s of state.mixerStrips) {
+      stripsByType[s.stripType] = (stripsByType[s.stripType] || 0) + 1
+    }
+    console.log('[colorizateur] Mixer strips found:', stripsByType, 'Total:', state.mixerStrips.length)
 
-        <h3>Notes</h3>
-        <ul>
-          <li>Cables routed into FX sends, master sends or aux sends keep their default gray color.</li>
-          <li>Empty groups (no devices in the project) are disabled and skipped.</li>
-          <li>Your fav 3 selections are stored locally in the browser.</li>
-        </ul>
+    setStatus(`ready`, 'ok')
+    renderSummary()
+    renderStrips()
+    setButtonsEnabled(true)
+  } catch (e: any) {
+    setStatus('failed: ' + e.message, 'error')
+    console.error(e)
+  }
+}
 
-        <p class="help-footer">more by snad industries → <a href="https://github.com/SnadBreugen?tab=repositories" target="_blank" rel="noopener">github.com/SnadBreugen</a></p>
-      </div>
-    </div>
-  </div>
+async function applyColors() {
+  if (!state || !lastNexus) return
 
-  <script type="module" src="/src/main.ts"></script>
-</body>
-</html>
+  const cableChanges: Array<{ cableId: string; color: number }> = []
+  const regionChanges: Array<{ colorField: any; color: number }> = []
+  const stripChanges: Array<{ colorField: any; color: number }> = []
+
+  for (const cable of state.cables) {
+    const target = targetColorForCable(cable)
+    if (target === null) continue
+    if (target === cable.originalColor) continue
+    cableChanges.push({ cableId: cable.id, color: target })
+  }
+
+  for (const region of state.regions) {
+    const target = targetColorForRegion(region)
+    if (target === null) continue
+    if (target === region.originalColor) continue
+    regionChanges.push({ colorField: region.colorField, color: target })
+  }
+
+  for (const strip of state.mixerStrips) {
+    const target = targetColorForMixerStrip(strip)
+    if (target === null) continue
+    if (target === strip.originalColor) continue
+    stripChanges.push({ colorField: strip.colorField, color: target })
+  }
+
+  const totalChanges = cableChanges.length + regionChanges.length + stripChanges.length
+  if (totalChanges === 0) {
+    setStatus('no changes to apply', 'info')
+    return
+  }
+
+  try {
+    setStatus(`writing ${cableChanges.length} cables + ${regionChanges.length} regions + ${stripChanges.length} strips...`, 'info')
+    await lastNexus.modify((t: any) => {
+      for (const ch of cableChanges) {
+        const cable = state!.cablesById.get(ch.cableId)
+        if (!cable || !cable.fields.colorIndex) continue
+        t.update(cable.fields.colorIndex, ch.color)
+      }
+      for (const ch of regionChanges) {
+        if (!ch.colorField) continue
+        t.update(ch.colorField, ch.color)
+      }
+      for (const ch of stripChanges) {
+        if (!ch.colorField) continue
+        t.update(ch.colorField, ch.color)
+      }
+    })
+
+    for (const cable of state.cables) {
+      const target = targetColorForCable(cable)
+      if (target !== null) cable.originalColor = target
+    }
+    for (const region of state.regions) {
+      const target = targetColorForRegion(region)
+      if (target !== null) region.originalColor = target
+    }
+    for (const strip of state.mixerStrips) {
+      const target = targetColorForMixerStrip(strip)
+      if (target !== null) strip.originalColor = target
+    }
+
+    await new Promise(r => setTimeout(r, 600))
+    setStatus(`applied — ${cableChanges.length} cables, ${regionChanges.length} regions, ${stripChanges.length} strips`, 'ok')
+  } catch (e: any) {
+    setStatus('apply failed: ' + e.message, 'error')
+    console.error(e)
+  }
+}
+
+async function undoColors() {
+  if (!state || !lastNexus) return
+  try {
+    setStatus('undoing...', 'info')
+    await lastNexus.modify((t: any) => {
+      for (const cable of state!.cables) {
+        const raw = state!.cablesById.get(cable.id)
+        if (!raw || !raw.fields.colorIndex) continue
+        t.update(raw.fields.colorIndex, cable.originalColor)
+      }
+      for (const region of state!.regions) {
+        if (!region.colorField) continue
+        t.update(region.colorField, region.originalColor)
+      }
+      for (const strip of state!.mixerStrips) {
+        if (!strip.colorField) continue
+        t.update(strip.colorField, strip.originalColor)
+      }
+    })
+    await new Promise(r => setTimeout(r, 400))
+    setStatus('undone', 'ok')
+  } catch (e: any) {
+    setStatus('undo failed: ' + e.message, 'error')
+    console.error(e)
+  }
+}
+
+async function randomizeColors() {
+  if (!state || !lastNexus) {
+    setStatus('read a project first', 'warning')
+    return
+  }
+  overrideMode = 'random'
+  overrideByCableId = new Map()
+  overrideByRegionId = new Map()
+  overrideByMixerStripId = new Map()
+
+  setStatus(`randomizing — slot machine spinning...`, 'info')
+
+  await animateRandomizeSlots()
+
+  const pool: number[] = []
+  for (const g of GROUP_ORDER) {
+    for (const slot of SLOT_KEYS) {
+      const c = groupColors[g][slot]
+      if (c !== null) pool.push(c)
+    }
+  }
+
+  if (pool.length === 0) {
+    setStatus('randomize: no slots filled', 'warning')
+    return
+  }
+
+  for (const c of state.cables) {
+    overrideByCableId.set(c.id, pool[Math.floor(Math.random() * pool.length)])
+  }
+  for (const r of state.regions) {
+    overrideByRegionId.set(r.id, pool[Math.floor(Math.random() * pool.length)])
+  }
+  for (const s of state.mixerStrips) {
+    overrideByMixerStripId.set(s.id, pool[Math.floor(Math.random() * pool.length)])
+  }
+
+  setStatus(`writing ${state.cables.length} cables + ${state.regions.length} regions + ${state.mixerStrips.length} strips...`, 'info')
+  await applyColors()
+}
+
+async function animateRandomizeSlots(): Promise<void> {
+  if (!state) return
+
+  const activeGroups = GROUP_ORDER.filter(g => (state!.counts[g] ?? 0) > 0)
+  if (activeGroups.length === 0) return
+
+  const allBands: Array<{ el: HTMLElement; group: GroupKey; slot: SlotKey }> = []
+  for (const g of activeGroups) {
+    for (const slot of SLOT_KEYS) {
+      const el = document.querySelector<HTMLElement>(
+        `.strip[data-group="${g}"] .strip-band[data-slot="${slot}"]`
+      )
+      if (el) allBands.push({ el, group: g, slot })
+    }
+  }
+
+  if (allBands.length === 0) return
+
+  const BLINK_INTERVAL = 80
+  const STAGGER_DELAY = 120
+  const MIN_BLINKS = 6
+
+  const stillBlinking = allBands.map(() => true)
+
+  const wasEmpty = allBands.map(b => b.el.classList.contains('empty'))
+  for (let i = 0; i < allBands.length; i++) {
+    if (wasEmpty[i]) {
+      allBands[i].el.classList.remove('empty')
+      allBands[i].el.style.background = '#000'
+    }
+  }
+
+  const blinkTimer = setInterval(() => {
+    for (let i = 0; i < allBands.length; i++) {
+      if (!stillBlinking[i]) continue
+      const randIdx = ALL_NEXUS_INDICES[Math.floor(Math.random() * ALL_NEXUS_INDICES.length)]
+      allBands[i].el.style.background = hexForNexusIndex(randIdx)
+    }
+  }, BLINK_INTERVAL)
+
+  await new Promise(r => setTimeout(r, BLINK_INTERVAL * MIN_BLINKS))
+
+  const availablePool = [...ALL_NEXUS_INDICES]
+
+  for (let i = 0; i < allBands.length; i++) {
+    if (availablePool.length === 0) break
+    const pickIdx = Math.floor(Math.random() * availablePool.length)
+    const finalIdx = availablePool.splice(pickIdx, 1)[0]
+    stillBlinking[i] = false
+    allBands[i].el.style.background = hexForNexusIndex(finalIdx)
+    groupColors[allBands[i].group][allBands[i].slot] = finalIdx
+    await new Promise(r => setTimeout(r, STAGGER_DELAY))
+  }
+
+  clearInterval(blinkTimer)
+}
+
+function resetColors() {
+  groupColors = {
+    synths: { main: null, second: null, third: null },
+    drums: { main: null, second: null, third: null },
+    audio: { main: null, second: null, third: null },
+    vst: { main: null, second: null, third: null },
+  }
+  overrideMode = null
+  overrideByCableId.clear()
+  overrideByRegionId.clear()
+  overrideByMixerStripId.clear()
+  renderStrips()
+  setStatus('reset', 'info')
+}
+
+async function main() {
+  const stripesHtml = PICKER_CELLS
+    .map(cell => `<div class="color-stripe-cell" style="background:${hexForNexusIndex(cell.nexusIndex)}"></div>`)
+    .join('')
+  document.getElementById('color-stripes')!.innerHTML = stripesHtml
+
+  renderPresetButtons()
+
+  document.getElementById('login-section')!.style.display = 'block'
+
+  at = await audiotool({
+    clientId: CLIENT_ID,
+    redirectUrl: REDIRECT_URL,
+    scope: 'project:write',
+  })
+  ;(window as any).at = at
+
+  document.getElementById('login-btn')!.addEventListener('click', () => at.login())
+
+  if (at.status === 'unauthenticated') {
+    const text = document.querySelector('#status-init span:last-child') as HTMLElement
+    if (text) text.textContent = 'not connected — click login'
+    return
+  }
+
+  document.getElementById('login-section')!.style.display = 'none'
+  document.getElementById('main-panel')!.style.display = 'block'
+
+  document.getElementById('read-btn')!.addEventListener('click', () => {
+    const input = document.getElementById('project-url') as HTMLInputElement
+    const url = input.value.trim()
+    if (!url) { setStatus('paste a project url first', 'error'); return }
+    readProject(url)
+  })
+
+  document.getElementById('apply-btn')!.addEventListener('click', applyColors)
+  document.getElementById('undo-btn')!.addEventListener('click', undoColors)
+  document.getElementById('randomize-btn')!.addEventListener('click', randomizeColors)
+  document.getElementById('favorites-btn')!.addEventListener('click', applyFavorites)
+  document.getElementById('reset-btn')!.addEventListener('click', resetColors)
+
+  document.getElementById('picker-cancel')!.addEventListener('click', closePicker)
+  document.getElementById('picker-overlay')!.addEventListener('click', e => {
+    if ((e.target as HTMLElement).id === 'picker-overlay') closePicker()
+  })
+
+  document.getElementById('fav-cancel')!.addEventListener('click', closeFavEditor)
+  document.getElementById('fav-clear')!.addEventListener('click', clearFavDraft)
+  document.getElementById('fav-apply')!.addEventListener('click', applyFavoritesNow)
+  document.getElementById('fav-overlay')!.addEventListener('click', e => {
+    if ((e.target as HTMLElement).id === 'fav-overlay') closeFavEditor()
+  })
+
+  const helpOverlay = document.getElementById('help-overlay')!
+  document.getElementById('help-btn')!.addEventListener('click', () => {
+    helpOverlay.classList.add('active')
+  })
+  document.getElementById('help-close')!.addEventListener('click', () => {
+    helpOverlay.classList.remove('active')
+  })
+  helpOverlay.addEventListener('click', e => {
+    if ((e.target as HTMLElement).id === 'help-overlay') helpOverlay.classList.remove('active')
+  })
+
+  setStatus('connected — paste a project url', 'ok')
+  setButtonsEnabled(false)
+  renderStrips()
+}
+
+main()
