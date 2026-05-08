@@ -1,10 +1,10 @@
 import { audiotool } from '@audiotool/nexus'
 
-const VERSION = '0.8.0'
+const VERSION = '0.8.1'
 const CLIENT_ID = 'b3947602-ebae-4224-9d65-6b7bdbcc9da6'
 const REDIRECT_URL = window.location.hostname === '127.0.0.1'
   ? 'http://127.0.0.1:5173/'
-  : window.location.origin + '/'
+  : window.location.origin + window.location.pathname
 
 // ─── Picker-Mapping ──────────────────────────────────────────────────
 type PickerCell = { nexusIndex: number; cssNum: number; name: string }
