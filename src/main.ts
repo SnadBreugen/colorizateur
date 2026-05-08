@@ -142,6 +142,7 @@ const PRESETS: Preset[] = [
   { name: 'Beach',         colors: [1, 10, 2] },     // Audiotool · Lemon · Cerulean
   { name: 'Down to Earth', colors: [34, 38, 33] },   // Vacuum · Bistre · Circuit
   { name: 'Compliment',    colors: [11, 7, 4] },     // Sprout · Bonbon · Electra
+  { name: 'Nightshift',    colors: [26, 28, 24] },   // Polar Night · Purple Haze · Reef
 ]
 
 function deviceGroup(type: string): GroupKey | null {
