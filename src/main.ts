@@ -1151,7 +1151,8 @@ function resetColors() {
 }
 
 async function main() {
-  const stripesHtml = PICKER_CELLS
+  // Streifen verdoppelt für nahtlosen Loop bei der CSS-Wander-Animation
+  const stripesHtml = [...PICKER_CELLS, ...PICKER_CELLS]
     .map(cell => `<div class="color-stripe-cell" style="background:${hexForNexusIndex(cell.nexusIndex)}"></div>`)
     .join('')
   document.getElementById('color-stripes')!.innerHTML = stripesHtml

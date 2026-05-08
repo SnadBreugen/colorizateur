@@ -154,8 +154,15 @@
       display: flex;
       flex-direction: row;
       z-index: 0;
+      width: 200%;
+      animation: stripes-scroll 60s linear infinite;
     }
     .color-stripe-cell { flex: 1; }
+
+    @keyframes stripes-scroll {
+      from { transform: translateX(-50%); }
+      to   { transform: translateX(0); }
+    }
 
     /* ─── Main: shrink-to-fit, vertikal mittig ────────────────────── */
     main {
