@@ -521,7 +521,7 @@ function readState(nexus: any): ProjectState {
   }
 
   const mixerStrips: MixerStripInfo[] = []
-  const mixerStripTypes = ['mixerChannel', 'mixerGroup', 'mixerAux']
+  const mixerStripTypes = ['mixerChannel', 'mixerGroup', 'mixerAux', 'mixerReverbAux', 'mixerDelayAux', 'mixerMaster']
   for (const stripType of mixerStripTypes) {
     let entities: any[] = []
     try {
@@ -599,22 +599,10 @@ function targetColorForCable(cable: CableInfo): number | null {
     return groupColors[fromDev.group].main
   }
 
-  // Versuch 1: rückwärts durch Cables traceen (Stompbox/EQ-FX)
+  // Rückwärts durch Cables traceen (Stompbox/EQ-FX)
   const sourceGroup = traceSourceGroup(cable.fromId)
   if (sourceGroup) {
     return groupColors[sourceGroup].second
-  }
-
-  // Versuch 2 — Send-FX-Cable: from ist ein Mixer-Strip, kein Device
-  // Nur aktiv im Preset-Mode. Bei manueller Slot-Auswahl bleibt das Cable grau.
-  if (presetMode && cable.fromId) {
-    const fromStrip = state.mixerStrips.find(s => s.id === cable.fromId)
-    if (fromStrip?.sourceDeviceId) {
-      const stripDev = state.devices.get(fromStrip.sourceDeviceId)
-      if (stripDev?.group) {
-        return groupColors[stripDev.group].second
-      }
-    }
   }
 
   return null
@@ -672,6 +660,26 @@ function targetColorForMixerStrip(strip: MixerStripInfo): number | null {
   if (overrideMode !== null) {
     const o = overrideByMixerStripId.get(strip.id)
     return o ?? null
+  }
+
+  // Send-Strips ohne eigene Source: bekommen Preset-Farben (c1/c2/c3),
+  // bleiben bei manueller Slot-Auswahl grau.
+  if (
+    strip.stripType === 'mixerReverbAux' ||
+    strip.stripType === 'mixerDelayAux' ||
+    strip.stripType === 'mixerMaster'
+  ) {
+    if (!presetMode) return null
+    // Synths-Slots werden als Quelle für die 4 Preset-Farben benutzt
+    // (Synths.main = c0, Synths.second = c1, Synths.third = c2, Drums.third = c3 — siehe Diagonal-Verteilung)
+    const c0 = groupColors.synths.main
+    const c1 = groupColors.synths.second
+    const c2 = groupColors.synths.third
+    const c3 = groupColors.drums.third
+    if (strip.stripType === 'mixerReverbAux') return c1
+    if (strip.stripType === 'mixerDelayAux')  return c2
+    if (strip.stripType === 'mixerMaster')    return c3
+    return c0
   }
 
   if (!strip.sourceDeviceId) return null
@@ -1015,21 +1023,23 @@ async function applyColors() {
 
   try {
     setStatus(`writing ${cableChanges.length} cables + ${regionChanges.length} regions + ${stripChanges.length} strips...`, 'info')
+    let skipped = 0
     await lastNexus.modify((t: any) => {
       for (const ch of cableChanges) {
         const cable = state!.cablesById.get(ch.cableId)
         if (!cable || !cable.fields.colorIndex) continue
-        t.update(cable.fields.colorIndex, ch.color)
+        try { t.update(cable.fields.colorIndex, ch.color) } catch { skipped++ }
       }
       for (const ch of regionChanges) {
         if (!ch.colorField) continue
-        t.update(ch.colorField, ch.color)
+        try { t.update(ch.colorField, ch.color) } catch { skipped++ }
       }
       for (const ch of stripChanges) {
         if (!ch.colorField) continue
-        t.update(ch.colorField, ch.color)
+        try { t.update(ch.colorField, ch.color) } catch { skipped++ }
       }
     })
+    if (skipped > 0) console.warn(`[colorizateur] ${skipped} updates skipped (entity not found)`)
 
     for (const cable of state.cables) {
       const target = targetColorForCable(cable)
@@ -1060,15 +1070,15 @@ async function undoColors() {
       for (const cable of state!.cables) {
         const raw = state!.cablesById.get(cable.id)
         if (!raw || !raw.fields.colorIndex) continue
-        t.update(raw.fields.colorIndex, cable.originalColor)
+        try { t.update(raw.fields.colorIndex, cable.originalColor) } catch {}
       }
       for (const region of state!.regions) {
         if (!region.colorField) continue
-        t.update(region.colorField, region.originalColor)
+        try { t.update(region.colorField, region.originalColor) } catch {}
       }
       for (const strip of state!.mixerStrips) {
         if (!strip.colorField) continue
-        t.update(strip.colorField, strip.originalColor)
+        try { t.update(strip.colorField, strip.originalColor) } catch {}
       }
     })
     await new Promise(r => setTimeout(r, 400))
