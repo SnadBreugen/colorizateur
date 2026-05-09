@@ -612,6 +612,12 @@ function targetColorForCable(cable: CableInfo): number | null {
     return groupColors[sourceGroup].second
   }
 
+  // Send-FX-Cable: from ist ein Mixer-Strip (mixerAux/mixerMaster/mixerReverbAux/mixerDelayAux),
+  // kein Device → Send-Pfad. Bei Preset/Favorites einheitliche Send-Farbe, sonst grau.
+  if (cable.fromId && state.mixerStrips.some(s => s.id === cable.fromId)) {
+    return colorForSend()
+  }
+
   return null
 }
 
@@ -865,7 +871,12 @@ async function applyFavoritesNow() {
   overrideByMixerStripId = new Map()
 
   for (const c of state.cables) {
-    overrideByCableId.set(c.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+    // Send-FX-Cable: from ist ein Mixer-Strip → bekommt einheitliche Send-Farbe
+    const isSendCable = !c.isNoteCable && c.fromId && state.mixerStrips.some(s => s.id === c.fromId)
+    overrideByCableId.set(
+      c.id,
+      isSendCable ? sendsColor : validFavs[Math.floor(Math.random() * validFavs.length)]
+    )
   }
   for (const r of state.regions) {
     // Send-Pfad: automationRegion auf Non-Group-Device ohne erreichbare Source-Gruppe
