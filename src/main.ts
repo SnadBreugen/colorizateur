@@ -217,12 +217,17 @@ let groupColors: Record<GroupKey, GroupColors> = {
 
 type OverrideMode = null | 'random' | 'favorites'
 let overrideMode: OverrideMode = null
+// presetMode = true wenn aktuell ein Preset geladen ist. Send-FX-Cables werden
+// nur eingefärbt wenn presetMode oder overrideMode aktiv ist (manuelle Slot-Auswahl
+// lässt Send-FX grau).
+let presetMode: boolean = false
 let overrideByCableId: Map<string, number> = new Map()
 let overrideByRegionId: Map<string, number> = new Map()
 let overrideByMixerStripId: Map<string, number> = new Map()
 
 ;(window as any).__colorizateur = () => ({
   overrideMode,
+  presetMode,
   overrideSize: overrideByCableId.size,
   regionOverrides: overrideByRegionId.size,
   stripOverrides: overrideByMixerStripId.size,
@@ -322,6 +327,8 @@ function applyPreset(idx: number) {
       third:  preset.colors[(i + 2) % 4],
     }
   }
+
+  presetMode = true
 
   renderStrips()
   setStatus(`preset "${preset.name}" loaded — press apply to write`, 'info')
@@ -592,10 +599,24 @@ function targetColorForCable(cable: CableInfo): number | null {
     return groupColors[fromDev.group].main
   }
 
+  // Versuch 1: rückwärts durch Cables traceen (Stompbox/EQ-FX)
   const sourceGroup = traceSourceGroup(cable.fromId)
   if (sourceGroup) {
     return groupColors[sourceGroup].second
   }
+
+  // Versuch 2 — Send-FX-Cable: from ist ein Mixer-Strip, kein Device
+  // Nur aktiv im Preset-Mode. Bei manueller Slot-Auswahl bleibt das Cable grau.
+  if (presetMode && cable.fromId) {
+    const fromStrip = state.mixerStrips.find(s => s.id === cable.fromId)
+    if (fromStrip?.sourceDeviceId) {
+      const stripDev = state.devices.get(fromStrip.sourceDeviceId)
+      if (stripDev?.group) {
+        return groupColors[stripDev.group].second
+      }
+    }
+  }
+
   return null
 }
 
@@ -786,6 +807,7 @@ function renderPickerGrid(selectedNexusIdx: number | null) {
 function pickColor(nexusIdx: number) {
   if (!pickerTarget) return
   groupColors[pickerTarget.group][pickerTarget.slot] = nexusIdx
+  presetMode = false
   closePicker()
   renderStrips()
   setStatus('color set — press apply to write to project', 'info')
@@ -813,6 +835,7 @@ async function applyFavoritesNow() {
   saveFavorites(favorites)
 
   overrideMode = 'favorites'
+  presetMode = false
   overrideByCableId = new Map()
   overrideByRegionId = new Map()
   overrideByMixerStripId = new Map()
@@ -1062,6 +1085,7 @@ async function randomizeColors() {
     return
   }
   overrideMode = 'random'
+  presetMode = false
   overrideByCableId = new Map()
   overrideByRegionId = new Map()
   overrideByMixerStripId = new Map()
@@ -1162,6 +1186,7 @@ function resetColors() {
     vst: { main: null, second: null, third: null },
   }
   overrideMode = null
+  presetMode = false
   overrideByCableId.clear()
   overrideByRegionId.clear()
   overrideByMixerStripId.clear()
