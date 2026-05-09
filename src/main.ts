@@ -127,7 +127,7 @@ const SLOT_KEYS: SlotKey[] = ['main', 'second', 'third']
 const SLOT_LABELS: Record<SlotKey, string> = {
   main: 'Main | Noteregion | Channels',
   second: 'FX Chain | Automation | Aux',
-  third: 'Midi FX | Groups',
+  third: 'Midi FX | Groups | Sends',
 }
 
 // ─── Presets: 4 Farben pro Preset, diagonal über 4 Gruppen × 3 Slots verteilt ───
@@ -221,6 +221,10 @@ let overrideMode: OverrideMode = null
 // nur eingefärbt wenn presetMode oder overrideMode aktiv ist (manuelle Slot-Auswahl
 // lässt Send-FX grau).
 let presetMode: boolean = false
+// Wird bei applyFavoritesNow gesetzt — eine zufällige Fav-Farbe die für ALLE
+// Send-Strips und Send-Pfad-Automation-Regions zusammen genutzt wird, damit's
+// einheitlich aussieht.
+let favSendsColor: number | null = null
 let overrideByCableId: Map<string, number> = new Map()
 let overrideByRegionId: Map<string, number> = new Map()
 let overrideByMixerStripId: Map<string, number> = new Map()
@@ -228,6 +232,7 @@ let overrideByMixerStripId: Map<string, number> = new Map()
 ;(window as any).__colorizateur = () => ({
   overrideMode,
   presetMode,
+  favSendsColor,
   overrideSize: overrideByCableId.size,
   regionOverrides: overrideByRegionId.size,
   stripOverrides: overrideByMixerStripId.size,
@@ -307,6 +312,7 @@ function applyPreset(idx: number) {
 
   if (overrideMode !== null) {
     overrideMode = null
+    favSendsColor = null
     overrideByCableId.clear()
     overrideByRegionId.clear()
     overrideByMixerStripId.clear()
@@ -329,6 +335,7 @@ function applyPreset(idx: number) {
   }
 
   presetMode = true
+  favSendsColor = null
 
   renderStrips()
   setStatus(`preset "${preset.name}" loaded — press apply to write`, 'info')
@@ -648,9 +655,23 @@ function targetColorForRegion(region: RegionInfo): number | null {
     if (sourceGroup) {
       return groupColors[sourceGroup].second
     }
-    return null
+    // Owner-Device hat keine erreichbare Source-Gruppe rückwärts
+    // → Device hängt im Send-Pfad (Curve, Reverb-FX im Send-Bus etc.)
+    // → gleiche Farbe wie die Send-Strips
+    return colorForSend()
   }
 
+  return null
+}
+
+// Liefert die Farbe die alle Send-Strips und Send-Pfad-Automation-Regions
+// gemeinsam haben sollen.
+// - Bei Preset: groupColors.vst.third (eine Farbe aus dem 4-Farben-Schema)
+// - Bei Favorites: die einmalig gewählte Send-Farbe (favSendsColor)
+// - Sonst: null (= grau bleiben lassen)
+function colorForSend(): number | null {
+  if (presetMode) return groupColors.vst.third
+  if (favSendsColor !== null) return favSendsColor
   return null
 }
 
@@ -662,24 +683,13 @@ function targetColorForMixerStrip(strip: MixerStripInfo): number | null {
     return o ?? null
   }
 
-  // Send-Strips ohne eigene Source: bekommen Preset-Farben (c1/c2/c3),
-  // bleiben bei manueller Slot-Auswahl grau.
+  // Send-Strips: bei Preset/Favorites einheitliche Send-Farbe, sonst grau lassen
   if (
     strip.stripType === 'mixerReverbAux' ||
     strip.stripType === 'mixerDelayAux' ||
     strip.stripType === 'mixerMaster'
   ) {
-    if (!presetMode) return null
-    // Synths-Slots werden als Quelle für die 4 Preset-Farben benutzt
-    // (Synths.main = c0, Synths.second = c1, Synths.third = c2, Drums.third = c3 — siehe Diagonal-Verteilung)
-    const c0 = groupColors.synths.main
-    const c1 = groupColors.synths.second
-    const c2 = groupColors.synths.third
-    const c3 = groupColors.drums.third
-    if (strip.stripType === 'mixerReverbAux') return c1
-    if (strip.stripType === 'mixerDelayAux')  return c2
-    if (strip.stripType === 'mixerMaster')    return c3
-    return c0
+    return colorForSend()
   }
 
   if (!strip.sourceDeviceId) return null
@@ -774,6 +784,7 @@ function renderStrips() {
       const slot = el.dataset.slot as SlotKey
       if (overrideMode !== null) {
         overrideMode = null
+        favSendsColor = null
         overrideByCableId.clear()
         overrideByRegionId.clear()
         overrideByMixerStripId.clear()
@@ -816,6 +827,7 @@ function pickColor(nexusIdx: number) {
   if (!pickerTarget) return
   groupColors[pickerTarget.group][pickerTarget.slot] = nexusIdx
   presetMode = false
+  favSendsColor = null
   closePicker()
   renderStrips()
   setStatus('color set — press apply to write to project', 'info')
@@ -844,17 +856,40 @@ async function applyFavoritesNow() {
 
   overrideMode = 'favorites'
   presetMode = false
+  // Eine einheitliche Send-Farbe für ALLE Send-Strips + Send-Pfad-Automation-Regions
+  const sendsColor = validFavs[Math.floor(Math.random() * validFavs.length)]
+  favSendsColor = sendsColor
+
   overrideByCableId = new Map()
   overrideByRegionId = new Map()
   overrideByMixerStripId = new Map()
+
   for (const c of state.cables) {
     overrideByCableId.set(c.id, validFavs[Math.floor(Math.random() * validFavs.length)])
   }
   for (const r of state.regions) {
-    overrideByRegionId.set(r.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+    // Send-Pfad: automationRegion auf Non-Group-Device ohne erreichbare Source-Gruppe
+    let isSendPath = false
+    if (r.regionType === 'automationRegion' && r.ownerDeviceId) {
+      const dev = state.devices.get(r.ownerDeviceId)
+      if (!dev?.group && !traceSourceGroup(r.ownerDeviceId)) {
+        isSendPath = true
+      }
+    }
+    overrideByRegionId.set(
+      r.id,
+      isSendPath ? sendsColor : validFavs[Math.floor(Math.random() * validFavs.length)]
+    )
   }
   for (const s of state.mixerStrips) {
-    overrideByMixerStripId.set(s.id, validFavs[Math.floor(Math.random() * validFavs.length)])
+    const isSendStrip =
+      s.stripType === 'mixerReverbAux' ||
+      s.stripType === 'mixerDelayAux' ||
+      s.stripType === 'mixerMaster'
+    overrideByMixerStripId.set(
+      s.id,
+      isSendStrip ? sendsColor : validFavs[Math.floor(Math.random() * validFavs.length)]
+    )
   }
 
   closeFavEditor()
@@ -1096,6 +1131,7 @@ async function randomizeColors() {
   }
   overrideMode = 'random'
   presetMode = false
+  favSendsColor = null
   overrideByCableId = new Map()
   overrideByRegionId = new Map()
   overrideByMixerStripId = new Map()
@@ -1197,6 +1233,7 @@ function resetColors() {
   }
   overrideMode = null
   presetMode = false
+  favSendsColor = null
   overrideByCableId.clear()
   overrideByRegionId.clear()
   overrideByMixerStripId.clear()
