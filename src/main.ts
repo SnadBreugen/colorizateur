@@ -612,9 +612,16 @@ function targetColorForCable(cable: CableInfo): number | null {
     return groupColors[sourceGroup].second
   }
 
-  // Send-FX-Cable: from ist ein Mixer-Strip (mixerAux/mixerMaster/mixerReverbAux/mixerDelayAux),
+  // Send-FX-Cable: from ist ein Send-Mixer-Strip (Aux/Master/ReverbAux/DelayAux),
   // kein Device → Send-Pfad. Bei Preset/Favorites einheitliche Send-Farbe, sonst grau.
-  if (cable.fromId && state.mixerStrips.some(s => s.id === cable.fromId)) {
+  // Wichtig: mixerMaster taucht hier auch auf, obwohl er nicht in state.mixerStrips ist
+  // (kein colorIndex). Cable selbst hat aber colorIndex.
+  if (
+    cable.fromType === 'mixerAux' ||
+    cable.fromType === 'mixerMaster' ||
+    cable.fromType === 'mixerReverbAux' ||
+    cable.fromType === 'mixerDelayAux'
+  ) {
     return colorForSend()
   }
 
@@ -871,8 +878,14 @@ async function applyFavoritesNow() {
   overrideByMixerStripId = new Map()
 
   for (const c of state.cables) {
-    // Send-FX-Cable: from ist ein Mixer-Strip → bekommt einheitliche Send-Farbe
-    const isSendCable = !c.isNoteCable && c.fromId && state.mixerStrips.some(s => s.id === c.fromId)
+    // Send-FX-Cable: from ist ein Send-Mixer-Strip → bekommt einheitliche Send-Farbe
+    const isSendCable =
+      !c.isNoteCable && (
+        c.fromType === 'mixerAux' ||
+        c.fromType === 'mixerMaster' ||
+        c.fromType === 'mixerReverbAux' ||
+        c.fromType === 'mixerDelayAux'
+      )
     overrideByCableId.set(
       c.id,
       isSendCable ? sendsColor : validFavs[Math.floor(Math.random() * validFavs.length)]
