@@ -442,6 +442,16 @@ function readState(nexus: any): ProjectState {
   for (const c of audioCables) ingest(c, false)
   for (const c of noteCables) ingest(c, true)
 
+  // VST-Reklassifizierung: VSTs mit eingehendem Audio-Cable sind FX (Stompbox-artig),
+  // keine Sound-Source. Group wird auf null gesetzt, damit sie durch die Trace-Logik laufen.
+  for (const dev of devices.values()) {
+    if (dev.group !== 'vst') continue
+    const hasAudioInput = cables.some(c => !c.isNoteCable && c.toId === dev.id)
+    if (hasAudioInput) {
+      dev.group = null
+    }
+  }
+
   const regions: RegionInfo[] = []
   const trackToDevice = new Map<string, string>()
 
