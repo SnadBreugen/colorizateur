@@ -606,16 +606,8 @@ function targetColorForCable(cable: CableInfo): number | null {
     return groupColors[fromDev.group].main
   }
 
-  // Rückwärts durch Cables traceen (Stompbox/EQ-FX)
-  const sourceGroup = traceSourceGroup(cable.fromId)
-  if (sourceGroup) {
-    return groupColors[sourceGroup].second
-  }
-
   // Send-FX-Cable: from ist ein Send-Mixer-Strip (Aux/Master/ReverbAux/DelayAux),
   // kein Device → Send-Pfad. Bei Preset/Favorites einheitliche Send-Farbe, sonst grau.
-  // Wichtig: mixerMaster taucht hier auch auf, obwohl er nicht in state.mixerStrips ist
-  // (kein colorIndex). Cable selbst hat aber colorIndex.
   if (
     cable.fromType === 'mixerAux' ||
     cable.fromType === 'mixerMaster' ||
@@ -623,6 +615,17 @@ function targetColorForCable(cable: CableInfo): number | null {
     cable.fromType === 'mixerDelayAux'
   ) {
     return colorForSend()
+  }
+
+  // Rückwärts durch die Cable-Kette tracen — was zuerst kommt zählt:
+  // Send-Mixer-Strip → Send-Pfad-Cable (Slope→Delay, Curve→Quantum, Quantum→Stagebox usw.)
+  // Group-Device → reguläre FX-Chain → Slot 'second' der Source-Gruppe
+  const anchor = traceFirstAnchorBackward(cable.fromId)
+  if (anchor === 'send') {
+    return colorForSend()
+  }
+  if (anchor) {
+    return groupColors[anchor].second
   }
 
   return null
@@ -664,14 +667,15 @@ function targetColorForRegion(region: RegionInfo): number | null {
   }
 
   if (region.regionType === 'automationRegion') {
-    const sourceGroup = traceSourceGroup(region.ownerDeviceId)
-    if (sourceGroup) {
-      return groupColors[sourceGroup].second
+    const anchor = traceFirstAnchorBackward(region.ownerDeviceId)
+    if (anchor === 'send') {
+      // Owner-Device hängt im Send-Pfad (Curve, Quantum, Slope etc.)
+      return colorForSend()
     }
-    // Owner-Device hat keine erreichbare Source-Gruppe rückwärts
-    // → Device hängt im Send-Pfad (Curve, Reverb-FX im Send-Bus etc.)
-    // → gleiche Farbe wie die Send-Strips
-    return colorForSend()
+    if (anchor) {
+      return groupColors[anchor].second
+    }
+    return null
   }
 
   return null
@@ -730,6 +734,42 @@ function traceSourceGroup(deviceId: string | null): GroupKey | null {
     for (const c of state.cables) {
       if (c.isNoteCable) continue
       if (c.toId === cur && c.fromId && !visited.has(c.fromId)) {
+        queue.push(c.fromId)
+      }
+    }
+  }
+  return null
+}
+
+// Sucht rückwärts den ersten "Anker" durch die Audio-Cable-Kette.
+// - Trifft sie auf einen Send-Mixer-Strip (mixerAux/Master/ReverbAux/DelayAux) → 'send'
+// - Trifft sie auf ein Group-Device (Synth/Drum/Audio/VST-Source) → dessen GroupKey
+// - Findet sie nichts → null
+// BFS — was zuerst kommt zählt. Damit erkennen wir Send-Chains beliebiger Länge:
+// Slope→Delay→Stagebox: Trace von Delay rückwärts findet Slope, dann das mixerAux davor → 'send'.
+function traceFirstAnchorBackward(deviceId: string | null): 'send' | GroupKey | null {
+  if (!state || !deviceId) return null
+  const visited = new Set<string>()
+  const queue: string[] = [deviceId]
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    const dev = state.devices.get(cur)
+    if (dev?.group) return dev.group
+    for (const c of state.cables) {
+      if (c.isNoteCable) continue
+      if (c.toId !== cur) continue
+      // Send-Mixer-Strip als Quelle gefunden? → Send-Pfad
+      if (
+        c.fromType === 'mixerAux' ||
+        c.fromType === 'mixerMaster' ||
+        c.fromType === 'mixerReverbAux' ||
+        c.fromType === 'mixerDelayAux'
+      ) {
+        return 'send'
+      }
+      if (c.fromId && !visited.has(c.fromId)) {
         queue.push(c.fromId)
       }
     }
@@ -878,25 +918,35 @@ async function applyFavoritesNow() {
   overrideByMixerStripId = new Map()
 
   for (const c of state.cables) {
-    // Send-FX-Cable: from ist ein Send-Mixer-Strip → bekommt einheitliche Send-Farbe
-    const isSendCable =
-      !c.isNoteCable && (
+    let isSendCable = false
+    if (!c.isNoteCable) {
+      // Cable startet an einem Send-Mixer-Strip
+      if (
         c.fromType === 'mixerAux' ||
         c.fromType === 'mixerMaster' ||
         c.fromType === 'mixerReverbAux' ||
         c.fromType === 'mixerDelayAux'
-      )
+      ) {
+        isSendCable = true
+      } else {
+        // Cable startet an einem Device — schauen ob das Device im Send-Pfad hängt
+        const fromDev = c.fromId ? state.devices.get(c.fromId) : null
+        if (!fromDev?.group && traceFirstAnchorBackward(c.fromId) === 'send') {
+          isSendCable = true
+        }
+      }
+    }
     overrideByCableId.set(
       c.id,
       isSendCable ? sendsColor : validFavs[Math.floor(Math.random() * validFavs.length)]
     )
   }
   for (const r of state.regions) {
-    // Send-Pfad: automationRegion auf Non-Group-Device ohne erreichbare Source-Gruppe
+    // Send-Pfad: automationRegion auf einem Device im Send-Pfad
     let isSendPath = false
     if (r.regionType === 'automationRegion' && r.ownerDeviceId) {
       const dev = state.devices.get(r.ownerDeviceId)
-      if (!dev?.group && !traceSourceGroup(r.ownerDeviceId)) {
+      if (!dev?.group && traceFirstAnchorBackward(r.ownerDeviceId) === 'send') {
         isSendPath = true
       }
     }
